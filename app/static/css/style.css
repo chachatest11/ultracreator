@@ -112,6 +112,138 @@ body {
     color: white;
 }
 
+/* 채널 관리 섹션 */
+.channels-section {
+    background: #1a1a1a;
+    padding: 24px;
+    border-radius: 12px;
+    margin-bottom: 20px;
+}
+
+.channels-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.channels-header h3 {
+    font-size: 18px;
+    color: #e0e0e0;
+}
+
+.channels-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 12px;
+}
+
+.channel-card {
+    background: #0a0a0a;
+    border: 1px solid #252525;
+    border-radius: 8px;
+    padding: 12px 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: all 0.3s ease;
+}
+
+.channel-card:hover {
+    border-color: #2196f3;
+}
+
+.channel-card.inactive {
+    opacity: 0.5;
+}
+
+.channel-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.channel-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #e0e0e0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-bottom: 4px;
+}
+
+.channel-meta {
+    font-size: 12px;
+    color: #999;
+}
+
+.channel-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 44px;
+    height: 24px;
+}
+
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #333;
+    transition: 0.3s;
+    border-radius: 24px;
+}
+
+.toggle-slider:before {
+    position: absolute;
+    content: "";
+    height: 18px;
+    width: 18px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: 0.3s;
+    border-radius: 50%;
+}
+
+.toggle-switch input:checked + .toggle-slider {
+    background-color: #2196f3;
+}
+
+.toggle-switch input:checked + .toggle-slider:before {
+    transform: translateX(20px);
+}
+
+.btn-delete-channel {
+    background: none;
+    border: 1px solid #333;
+    color: #999;
+    padding: 6px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.3s ease;
+}
+
+.btn-delete-channel:hover {
+    border-color: #f44336;
+    color: #f44336;
+}
+
 /* 검색 섹션 */
 .search-section {
     background: #1a1a1a;

@@ -13,6 +13,9 @@ function selectCategory(categoryId) {
         }
     });
 
+    // 채널 목록 다시 로드
+    loadChannels();
+
     // 결과 초기화
     currentVideos = [];
     selectedVideoIds.clear();
@@ -135,6 +138,152 @@ async function deleteCategory(id) {
 }
 
 // ========================================
+// 채널 관리
+// ========================================
+
+async function loadChannels() {
+    try {
+        const response = await fetch(`/api/channels/?category_id=${currentCategoryId}`);
+        const data = await response.json();
+
+        const channelsList = document.getElementById('channelsList');
+        channelsList.innerHTML = '';
+
+        if (data.channels.length === 0) {
+            channelsList.innerHTML = '<p style="color: #999; text-align: center; padding: 20px;">등록된 채널이 없습니다. 채널을 추가하세요.</p>';
+            return;
+        }
+
+        data.channels.forEach(channel => {
+            const card = document.createElement('div');
+            card.className = `channel-card ${channel.is_active ? '' : 'inactive'}`;
+            card.innerHTML = `
+                <div class="channel-info">
+                    <div class="channel-title">${escapeHtml(channel.title || channel.channel_id)}</div>
+                    <div class="channel-meta">
+                        구독자 ${formatSubscriberCount(channel.subscriber_count || 0)}
+                        ${channel.country ? `· ${channel.country}` : ''}
+                    </div>
+                </div>
+                <div class="channel-actions">
+                    <label class="toggle-switch">
+                        <input type="checkbox"
+                               ${channel.is_active ? 'checked' : ''}
+                               onchange="toggleChannelActive(${channel.id})">
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <button class="btn-delete-channel" onclick="deleteChannel(${channel.id})">삭제</button>
+                </div>
+            `;
+            channelsList.appendChild(card);
+        });
+    } catch (error) {
+        console.error('채널 로드 실패:', error);
+    }
+}
+
+function openAddChannelModal() {
+    document.getElementById('addChannelModal').classList.add('active');
+}
+
+function closeAddChannelModal() {
+    document.getElementById('addChannelModal').classList.remove('active');
+    document.getElementById('channelInput').value = '';
+}
+
+async function addChannels() {
+    const apiKeyInput = document.getElementById('apiKey');
+    apiKey = apiKeyInput.value.trim();
+
+    if (!apiKey) {
+        alert('YouTube API Key를 입력하세요.');
+        apiKeyInput.focus();
+        closeAddChannelModal();
+        return;
+    }
+
+    localStorage.setItem('youtube_api_key', apiKey);
+
+    const channelInput = document.getElementById('channelInput').value.trim();
+    const channelInputs = channelInput
+        .split('\n')
+        .map(line => line.trim())
+        .filter(line => line.length > 0);
+
+    if (channelInputs.length === 0) {
+        alert('채널을 입력하세요.');
+        return;
+    }
+
+    showLoading(true);
+
+    try {
+        const response = await fetch('/api/channels/bulk_upsert', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                category_id: currentCategoryId,
+                channel_inputs: channelInputs,
+                api_key: apiKey
+            })
+        });
+
+        const result = await response.json();
+
+        if (result.success > 0) {
+            alert(`${result.success}개 채널이 추가되었습니다.${result.failed > 0 ? `\n실패: ${result.failed}개` : ''}`);
+            closeAddChannelModal();
+            loadChannels();
+        } else {
+            alert('채널 추가에 실패했습니다.\n' + (result.errors || []).map(e => e.error).join('\n'));
+        }
+    } catch (error) {
+        console.error('채널 추가 실패:', error);
+        alert('채널 추가에 실패했습니다.');
+    } finally {
+        showLoading(false);
+    }
+}
+
+async function toggleChannelActive(channelId) {
+    try {
+        const response = await fetch(`/api/channels/${channelId}/toggle_active`, {
+            method: 'PUT'
+        });
+
+        if (response.ok) {
+            loadChannels();
+        } else {
+            alert('채널 상태 변경에 실패했습니다.');
+        }
+    } catch (error) {
+        console.error('채널 상태 변경 실패:', error);
+        alert('채널 상태 변경에 실패했습니다.');
+    }
+}
+
+async function deleteChannel(channelId) {
+    if (!confirm('이 채널을 삭제하시겠습니까?')) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/channels/${channelId}`, {
+            method: 'DELETE'
+        });
+
+        if (response.ok) {
+            loadChannels();
+        } else {
+            alert('채널 삭제에 실패했습니다.');
+        }
+    } catch (error) {
+        console.error('채널 삭제 실패:', error);
+        alert('채널 삭제에 실패했습니다.');
+    }
+}
+
+// ========================================
 // 검색 및 영상 수집
 // ========================================
 
@@ -152,42 +301,13 @@ async function searchVideos() {
     // API Key 저장
     localStorage.setItem('youtube_api_key', apiKey);
 
-    // 채널 입력 확인
-    const channelInput = document.getElementById('channelInput').value.trim();
-    const channelInputs = channelInput
-        .split('\n')
-        .map(line => line.trim())
-        .filter(line => line.length > 0);
-
-    if (channelInputs.length === 0) {
-        alert('채널을 입력하세요.');
-        return;
-    }
-
     const maxVideos = parseInt(document.getElementById('maxVideos').value) || 50;
 
     // 로딩 시작
     showLoading(true);
 
     try {
-        // 1. 채널 저장
-        const saveResponse = await fetch('/api/channels/bulk_upsert', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                category_id: currentCategoryId,
-                channel_inputs: channelInputs,
-                api_key: apiKey
-            })
-        });
-
-        const saveResult = await saveResponse.json();
-
-        if (saveResult.failed > 0) {
-            console.warn('일부 채널 저장 실패:', saveResult.errors);
-        }
-
-        // 2. 영상 검색
+        // DB에 저장된 활성 채널들로부터 영상 검색
         const searchResponse = await fetch('/api/search/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -202,6 +322,10 @@ async function searchVideos() {
 
         const searchResult = await searchResponse.json();
 
+        if (!searchResponse.ok) {
+            throw new Error(searchResult.detail || '검색 실패');
+        }
+
         currentVideos = searchResult.videos || [];
 
         // 결과 표시
@@ -212,12 +336,16 @@ async function searchVideos() {
         document.getElementById('resultOptions').style.display = 'flex';
 
         if (searchResult.errors && searchResult.errors.length > 0) {
-            alert(`일부 채널에서 오류 발생:\n${searchResult.errors.map(e => e.error).join('\n')}`);
+            console.warn('일부 채널에서 오류 발생:', searchResult.errors);
+        }
+
+        if (currentVideos.length === 0) {
+            alert('검색 결과가 없습니다.\n활성화된 채널이 있는지 확인하세요.');
         }
 
     } catch (error) {
         console.error('검색 실패:', error);
-        alert('검색에 실패했습니다. API Key와 네트워크를 확인하세요.');
+        alert('검색에 실패했습니다.\n' + error.message);
     } finally {
         showLoading(false);
     }
@@ -414,6 +542,18 @@ function openYouTube(videoId) {
 function formatViewCount(count) {
     if (count >= 100000000) {
         return `${(count / 100000000).toFixed(1)}억`;
+    } else if (count >= 10000) {
+        return `${(count / 10000).toFixed(1)}만`;
+    } else if (count >= 1000) {
+        return `${(count / 1000).toFixed(1)}천`;
+    } else {
+        return count.toString();
+    }
+}
+
+function formatSubscriberCount(count) {
+    if (count >= 10000000) {
+        return `${(count / 10000000).toFixed(0)}천만`;
     } else if (count >= 10000) {
         return `${(count / 10000).toFixed(1)}만`;
     } else if (count >= 1000) {
