@@ -17,15 +17,17 @@
             <button
                 class="category-tab active"
                 data-category-id="0"
+                data-channel-count="{{ total_count }}"
                 onclick="selectCategory(0)">
-                전체
+                전체 (<span class="tab-count">{{ total_count }}</span>)
             </button>
             {% for category in categories %}
             <button
                 class="category-tab"
                 data-category-id="{{ category.id }}"
+                data-channel-count="{{ category.channel_count }}"
                 onclick="selectCategory({{ category.id }})">
-                {{ category.name }}
+                {{ category.name }} (<span class="tab-count">{{ category.channel_count }}</span>)
             </button>
             {% endfor %}
         </div>

@@ -50,7 +50,7 @@ async function loadCategories() {
             const item = document.createElement('div');
             item.className = 'category-item';
             item.innerHTML = `
-                <span class="category-item-name">${category.name}</span>
+                <span class="category-item-name">${category.name} (${category.channel_count})</span>
                 <div class="category-item-actions">
                     ${category.id !== 1 ? `
                         <button class="btn-edit" onclick="editCategory(${category.id}, '${category.name}')">수정</button>
@@ -60,10 +60,29 @@ async function loadCategories() {
             `;
             categoryList.appendChild(item);
         });
+
+        // 탭 개수도 업데이트
+        updateTabCounts(data.categories, data.total_count);
     } catch (error) {
         console.error('카테고리 로드 실패:', error);
         alert('카테고리를 불러오는데 실패했습니다.');
     }
+}
+
+function updateTabCounts(categories, totalCount) {
+    // 전체 탭 업데이트
+    const allTab = document.querySelector('.category-tab[data-category-id="0"] .tab-count');
+    if (allTab) {
+        allTab.textContent = totalCount;
+    }
+
+    // 각 카테고리 탭 업데이트
+    categories.forEach(category => {
+        const tab = document.querySelector(`.category-tab[data-category-id="${category.id}"] .tab-count`);
+        if (tab) {
+            tab.textContent = category.channel_count;
+        }
+    });
 }
 
 async function addCategory() {
@@ -157,6 +176,8 @@ async function loadChannels() {
 
         if (data.channels.length === 0) {
             channelsList.innerHTML = '<p style="color: #999; text-align: center; padding: 20px;">등록된 채널이 없습니다. 채널을 추가하세요.</p>';
+            // 탭 개수 업데이트
+            await refreshTabCounts();
             return;
         }
 
@@ -175,7 +196,7 @@ async function loadChannels() {
                         <a href="https://www.youtube.com/channel/${channel.channel_id}"
                            target="_blank"
                            class="channel-title-link"
-                           title="${escapeHtml(descriptionText)}">
+                           title="${descriptionText}">
                             ${escapeHtml(channel.title || channel.channel_id)}
                         </a>
                     </div>
@@ -204,8 +225,21 @@ async function loadChannels() {
             // 카테고리 옵션 동적 로드
             loadCategoryOptions(card.querySelector('.category-move-select'), channel.category_id);
         });
+
+        // 탭 개수 업데이트
+        await refreshTabCounts();
     } catch (error) {
         console.error('채널 로드 실패:', error);
+    }
+}
+
+async function refreshTabCounts() {
+    try {
+        const response = await fetch('/api/categories/');
+        const data = await response.json();
+        updateTabCounts(data.categories, data.total_count);
+    } catch (error) {
+        console.error('탭 개수 업데이트 실패:', error);
     }
 }
 

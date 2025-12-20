@@ -146,6 +146,7 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 12px;
     transition: all 0.3s ease;
 }
 
@@ -160,12 +161,14 @@ body {
 .channel-info {
     flex: 1;
     min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
 }
 
 .channel-title {
     font-size: 14px;
     font-weight: 600;
-    margin-bottom: 4px;
 }
 
 .channel-title-link {
@@ -186,6 +189,10 @@ body {
 .channel-meta {
     font-size: 12px;
     color: #999;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
 }
 
 .category-badge {
@@ -195,12 +202,14 @@ body {
     border-radius: 12px;
     font-size: 11px;
     font-weight: 600;
+    white-space: nowrap;
 }
 
 .channel-actions {
     display: flex;
     gap: 8px;
     align-items: center;
+    flex-shrink: 0;
 }
 
 .toggle-switch {

@@ -18,17 +18,38 @@ class CategoryUpdate(BaseModel):
 
 @router.get("/")
 def get_categories():
-    """모든 카테고리 조회"""
+    """모든 카테고리 조회 (채널 개수 포함)"""
     with get_db() as conn:
         cursor = conn.cursor()
+
+        # 전체 채널 개수
+        cursor.execute("SELECT COUNT(*) FROM channels")
+        total_count = cursor.fetchone()[0]
+
+        # 각 카테고리별 채널 개수 포함
         cursor.execute("""
-            SELECT id, name, created_at
-            FROM categories
-            ORDER BY id ASC
+            SELECT c.id, c.name, c.created_at, COUNT(ch.id) as channel_count
+            FROM categories c
+            LEFT JOIN channels ch ON c.id = ch.category_id
+            GROUP BY c.id, c.name, c.created_at
+            ORDER BY c.id ASC
         """)
         rows = cursor.fetchall()
-        categories = [Category.from_row(row).to_dict() for row in rows]
-        return {"categories": categories}
+
+        categories = []
+        for row in rows:
+            category_dict = {
+                "id": row[0],
+                "name": row[1],
+                "created_at": row[2],
+                "channel_count": row[3]
+            }
+            categories.append(category_dict)
+
+        return {
+            "categories": categories,
+            "total_count": total_count
+        }
 
 
 @router.post("/")

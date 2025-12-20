@@ -38,20 +38,29 @@ def startup_event():
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
     """메인 페이지"""
-    # 카테고리 목록 조회
+    # 카테고리 목록 조회 (채널 개수 포함)
     with get_db() as conn:
         cursor = conn.cursor()
+
+        # 전체 채널 개수
+        cursor.execute("SELECT COUNT(*) FROM channels")
+        total_count = cursor.fetchone()[0]
+
+        # 각 카테고리별 채널 개수 포함
         cursor.execute("""
-            SELECT id, name, created_at
-            FROM categories
-            ORDER BY id ASC
+            SELECT c.id, c.name, c.created_at, COUNT(ch.id) as channel_count
+            FROM categories c
+            LEFT JOIN channels ch ON c.id = ch.category_id
+            GROUP BY c.id, c.name, c.created_at
+            ORDER BY c.id ASC
         """)
         category_rows = cursor.fetchall()
         categories = [
             {
                 "id": row[0],
                 "name": row[1],
-                "created_at": row[2]
+                "created_at": row[2],
+                "channel_count": row[3]
             }
             for row in category_rows
         ]
@@ -60,7 +69,8 @@ async def index(request: Request):
         "index.html",
         {
             "request": request,
-            "categories": categories
+            "categories": categories,
+            "total_count": total_count
         }
     )
 
