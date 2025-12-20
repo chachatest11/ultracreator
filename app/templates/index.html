@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="app-container">
+    <!-- 헤더 -->
+    <header class="header">
+        <h1 class="logo">YouTube Shorts Downloader</h1>
+        <div class="header-actions">
+            <button class="btn-manage-categories" onclick="openCategoryModal()">카테고리 관리</button>
+        </div>
+    </header>
+
+    <!-- 카테고리 탭 -->
+    <div class="category-tabs-container">
+        <div class="category-tabs" id="categoryTabs">
+            {% for category in categories %}
+            <button
+                class="category-tab {% if loop.index == 1 %}active{% endif %}"
+                data-category-id="{{ category.id }}"
+                onclick="selectCategory({{ category.id }})">
+                {{ category.name }}
+            </button>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- 검색 조건 영역 -->
+    <div class="search-section">
+        <div class="api-key-input">
+            <label for="apiKey">YouTube API Key</label>
+            <input
+                type="password"
+                id="apiKey"
+                placeholder="API 키를 입력하세요"
+                value="">
+        </div>
+
+        <div class="channel-input">
+            <label for="channelInput">채널 입력 (여러 줄 가능)</label>
+            <textarea
+                id="channelInput"
+                rows="4"
+                placeholder="채널 URL, @핸들, 또는 채널 ID를 입력하세요&#10;예시:&#10;https://youtube.com/@channelname&#10;https://www.youtube.com/channel/UCxxxx&#10;UCxxxx"></textarea>
+        </div>
+
+        <div class="search-options">
+            <div class="option-group">
+                <label for="maxVideos">최대 영상 수</label>
+                <input type="number" id="maxVideos" value="50" min="1" max="100">
+            </div>
+            <button class="btn-primary btn-search" onclick="searchVideos()">검색</button>
+        </div>
+    </div>
+
+    <!-- 결과 옵션 영역 -->
+    <div class="result-options" id="resultOptions" style="display: none;">
+        <div class="option-group">
+            <label for="sortBy">정렬</label>
+            <select id="sortBy" onchange="applyFilters()">
+                <option value="latest">최신순</option>
+                <option value="views">조회수순</option>
+            </select>
+        </div>
+
+        <div class="option-group">
+            <label for="minViews">최소 조회수 (만)</label>
+            <input type="number" id="minViews" value="0" min="0" onchange="applyFilters()">
+        </div>
+
+        <div class="result-info">
+            <span id="resultCount">0개 영상</span>
+            <span id="selectedCount" style="display: none;">0개 선택</span>
+        </div>
+
+        <button class="btn-download" id="btnDownload" onclick="downloadSelected()" style="display: none;">
+            선택 영상 다운로드
+        </button>
+    </div>
+
+    <!-- 로딩 표시 -->
+    <div class="loading" id="loading" style="display: none;">
+        <div class="spinner"></div>
+        <p>로딩 중...</p>
+    </div>
+
+    <!-- 결과 카드 그리드 -->
+    <div class="video-grid" id="videoGrid">
+        <!-- 동적으로 채워짐 -->
+    </div>
+</div>
+
+<!-- 카테고리 관리 모달 -->
+<div class="modal" id="categoryModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>카테고리 관리</h2>
+            <button class="btn-close" onclick="closeCategoryModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <!-- 새 카테고리 추가 -->
+            <div class="add-category">
+                <input type="text" id="newCategoryName" placeholder="새 카테고리 이름">
+                <button class="btn-primary" onclick="addCategory()">추가</button>
+            </div>
+
+            <!-- 카테고리 목록 -->
+            <div class="category-list" id="categoryList">
+                <!-- 동적으로 채워짐 -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 다운로드 진행 모달 -->
+<div class="modal" id="downloadModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>다운로드 진행 중</h2>
+        </div>
+        <div class="modal-body">
+            <div class="download-progress">
+                <p id="downloadStatus">다운로드 준비 중...</p>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill" style="width: 0%"></div>
+                </div>
+                <div id="downloadResults"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// 전역 변수
+let currentCategoryId = {{ categories[0].id if categories else 1 }};
+let currentVideos = [];
+let selectedVideoIds = new Set();
+let apiKey = '';
+
+// 페이지 로드 시
+window.addEventListener('DOMContentLoaded', function() {
+    // API Key 로컬 스토리지에서 불러오기
+    const savedApiKey = localStorage.getItem('youtube_api_key');
+    if (savedApiKey) {
+        document.getElementById('apiKey').value = savedApiKey;
+        apiKey = savedApiKey;
+    }
+});
+</script>
+{% endblock %}

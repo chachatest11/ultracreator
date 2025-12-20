@@ -1,0 +1,202 @@
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
+from datetime import datetime
+from typing import List, Optional
+from ..db import get_db
+from ..models import Video
+from .youtube import YouTubeAPI
+
+router = APIRouter(prefix="/api/search", tags=["search"])
+
+
+class SearchRequest(BaseModel):
+    category_id: int
+    api_key: str
+    max_videos: int = 50
+    min_views_man: int = 0  # 만 단위 (10 => 100,000)
+    sort: str = "latest"  # latest or views
+
+
+@router.post("/")
+def search_videos(data: SearchRequest):
+    """
+    카테고리의 활성 채널에서 쇼츠 영상 수집
+
+    1. 해당 카테고리의 활성 채널 로드
+    2. 각 채널에서 최근 N개 쇼츠 수집
+    3. DB에 upsert
+    4. 필터/정렬 적용 후 반환
+    """
+    if not data.api_key:
+        raise HTTPException(status_code=400, detail="YouTube API Key가 필요합니다")
+
+    youtube_api = YouTubeAPI(data.api_key)
+
+    # 1. 활성 채널 로드
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT id, channel_id, title
+            FROM channels
+            WHERE category_id = ? AND is_active = 1
+        """, (data.category_id,))
+        channels = cursor.fetchall()
+
+    if not channels:
+        return {
+            "message": "활성화된 채널이 없습니다",
+            "videos": [],
+            "total": 0
+        }
+
+    # 2. 각 채널에서 쇼츠 수집
+    all_videos = []
+    errors = []
+
+    for channel_row in channels:
+        db_channel_id = channel_row[0]
+        youtube_channel_id = channel_row[1]
+        channel_title = channel_row[2]
+
+        try:
+            # YouTube API로 쇼츠 가져오기
+            shorts = youtube_api.get_channel_shorts(
+                youtube_channel_id,
+                max_results=data.max_videos
+            )
+
+            # DB에 upsert
+            with get_db() as conn:
+                cursor = conn.cursor()
+                now = datetime.now().isoformat()
+
+                for video_data in shorts:
+                    # 기존 영상 확인
+                    cursor.execute("""
+                        SELECT id FROM videos WHERE video_id = ?
+                    """, (video_data["video_id"],))
+                    existing = cursor.fetchone()
+
+                    if existing:
+                        # UPDATE
+                        cursor.execute("""
+                            UPDATE videos
+                            SET view_count = ?,
+                                updated_at = ?
+                            WHERE video_id = ?
+                        """, (
+                            video_data["view_count"],
+                            now,
+                            video_data["video_id"]
+                        ))
+                    else:
+                        # INSERT
+                        cursor.execute("""
+                            INSERT INTO videos (
+                                channel_id, video_id, title, published_at,
+                                view_count, thumbnail_url, duration_seconds,
+                                is_short, created_at, updated_at
+                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """, (
+                            video_data["channel_id"],
+                            video_data["video_id"],
+                            video_data["title"],
+                            video_data["published_at"],
+                            video_data["view_count"],
+                            video_data["thumbnail_url"],
+                            video_data["duration_seconds"],
+                            video_data["is_short"],
+                            now,
+                            now
+                        ))
+
+                conn.commit()
+
+            all_videos.extend(shorts)
+
+        except Exception as e:
+            errors.append({
+                "channel_title": channel_title,
+                "error": str(e)
+            })
+
+    # 3. DB에서 결과 조회 (필터/정렬 적용)
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        # 조회수 필터링
+        min_views = data.min_views_man * 10000
+
+        # 정렬 조건
+        order_by = "v.published_at DESC" if data.sort == "latest" else "v.view_count DESC"
+
+        # 카테고리의 채널들로부터 영상 조회
+        cursor.execute(f"""
+            SELECT v.id, v.channel_id, v.video_id, v.title, v.published_at,
+                   v.view_count, v.thumbnail_url, v.duration_seconds,
+                   v.is_short, v.created_at, v.updated_at, c.title as channel_title
+            FROM videos v
+            INNER JOIN channels c ON v.channel_id = c.channel_id
+            WHERE c.category_id = ?
+              AND c.is_active = 1
+              AND v.is_short = 1
+              AND v.view_count >= ?
+            ORDER BY {order_by}
+        """, (data.category_id, min_views))
+
+        rows = cursor.fetchall()
+        videos = [Video.from_row(row).to_dict() for row in rows]
+
+    return {
+        "videos": videos,
+        "total": len(videos),
+        "errors": errors if errors else None
+    }
+
+
+@router.get("/videos")
+def get_videos(
+    category_id: Optional[int] = None,
+    min_views_man: int = 0,
+    sort: str = "latest"
+):
+    """
+    저장된 영상 조회 (API 호출 없이)
+
+    프론트엔드에서 필터/정렬만 변경할 때 사용
+    """
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        min_views = min_views_man * 10000
+        order_by = "v.published_at DESC" if sort == "latest" else "v.view_count DESC"
+
+        if category_id:
+            cursor.execute(f"""
+                SELECT v.id, v.channel_id, v.video_id, v.title, v.published_at,
+                       v.view_count, v.thumbnail_url, v.duration_seconds,
+                       v.is_short, v.created_at, v.updated_at, c.title as channel_title
+                FROM videos v
+                INNER JOIN channels c ON v.channel_id = c.channel_id
+                WHERE c.category_id = ?
+                  AND c.is_active = 1
+                  AND v.is_short = 1
+                  AND v.view_count >= ?
+                ORDER BY {order_by}
+            """, (category_id, min_views))
+        else:
+            cursor.execute(f"""
+                SELECT v.id, v.channel_id, v.video_id, v.title, v.published_at,
+                       v.view_count, v.thumbnail_url, v.duration_seconds,
+                       v.is_short, v.created_at, v.updated_at, c.title as channel_title
+                FROM videos v
+                INNER JOIN channels c ON v.channel_id = c.channel_id
+                WHERE v.is_short = 1
+                  AND v.view_count >= ?
+                ORDER BY {order_by}
+            """, (min_views,))
+
+        rows = cursor.fetchall()
+        videos = [Video.from_row(row).to_dict() for row in rows]
+
+        return {"videos": videos, "total": len(videos)}
