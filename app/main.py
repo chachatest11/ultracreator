@@ -7,7 +7,8 @@ from .api import (
     categories_router,
     channels_router,
     search_router,
-    downloads_router
+    downloads_router,
+    settings_router
 )
 
 # FastAPI 앱 생성
@@ -22,6 +23,7 @@ app.include_router(categories_router)
 app.include_router(channels_router)
 app.include_router(search_router)
 app.include_router(downloads_router)
+app.include_router(settings_router)
 
 
 @app.on_event("startup")

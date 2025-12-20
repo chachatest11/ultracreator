@@ -162,13 +162,9 @@ let selectedVideoIds = new Set();
 let apiKey = '';
 
 // 페이지 로드 시
-window.addEventListener('DOMContentLoaded', function() {
-    // API Key 로컬 스토리지에서 불러오기
-    const savedApiKey = localStorage.getItem('youtube_api_key');
-    if (savedApiKey) {
-        document.getElementById('apiKey').value = savedApiKey;
-        apiKey = savedApiKey;
-    }
+window.addEventListener('DOMContentLoaded', async function() {
+    // API Key DB에서 불러오기
+    await loadApiKey();
 
     // 채널 목록 로드
     loadChannels();

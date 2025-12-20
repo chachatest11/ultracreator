@@ -96,6 +96,15 @@ def init_db():
             )
         """)
 
+        # settings 테이블
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS settings (
+                key TEXT PRIMARY KEY,
+                value TEXT,
+                updated_at DATETIME NOT NULL
+            )
+        """)
+
         # 기본 카테고리 삽입
         cursor.execute("""
             INSERT OR IGNORE INTO categories (name, created_at)

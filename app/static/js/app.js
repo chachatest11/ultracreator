@@ -202,7 +202,7 @@ async function addChannels() {
         return;
     }
 
-    localStorage.setItem('youtube_api_key', apiKey);
+    saveApiKey(apiKey);
 
     const channelInput = document.getElementById('channelInput').value.trim();
     const channelInputs = channelInput
@@ -299,7 +299,7 @@ async function searchVideos() {
     }
 
     // API Key 저장
-    localStorage.setItem('youtube_api_key', apiKey);
+    saveApiKey(apiKey);
 
     const maxVideos = parseInt(document.getElementById('maxVideos').value) || 50;
 
@@ -524,6 +524,36 @@ async function downloadSelected() {
         console.error('다운로드 실패:', error);
         statusEl.textContent = '다운로드 중 오류가 발생했습니다.';
         alert('다운로드에 실패했습니다.');
+    }
+}
+
+// ========================================
+// API Key 관리
+// ========================================
+
+async function loadApiKey() {
+    try {
+        const response = await fetch('/api/settings/youtube_api_key');
+        const data = await response.json();
+
+        if (data.value) {
+            document.getElementById('apiKey').value = data.value;
+            apiKey = data.value;
+        }
+    } catch (error) {
+        console.error('API Key 로드 실패:', error);
+    }
+}
+
+async function saveApiKey(key) {
+    try {
+        await fetch('/api/settings/youtube_api_key', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ value: key })
+        });
+    } catch (error) {
+        console.error('API Key 저장 실패:', error);
     }
 }
 
