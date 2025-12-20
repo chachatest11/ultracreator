@@ -160,11 +160,12 @@ async function loadChannels() {
             card.innerHTML = `
                 <div class="channel-info">
                     <div class="channel-title">
-                        ${escapeHtml(channel.title || channel.channel_id)}
                         <a href="https://www.youtube.com/channel/${channel.channel_id}"
                            target="_blank"
-                           class="channel-link"
-                           title="채널 보기">🔗</a>
+                           class="channel-title-link"
+                           title="채널 보기">
+                            ${escapeHtml(channel.title || channel.channel_id)}
+                        </a>
                     </div>
                     <div class="channel-meta">
                         구독자 ${formatSubscriberCount(channel.subscriber_count || 0)}
@@ -245,7 +246,7 @@ async function addChannels() {
         return;
     }
 
-    showLoading(true);
+    showLoading(true, false);
 
     try {
         const response = await fetch('/api/channels/bulk_upsert', {
@@ -367,7 +368,7 @@ async function uploadMdFile() {
     formData.append('category_id', currentCategoryId);
     formData.append('api_key', apiKey);
 
-    showLoading(true);
+    showLoading(true, false);
 
     try {
         const response = await fetch('/api/channels/upload_md', {
@@ -442,6 +443,8 @@ function extractYouTubeUrls(text) {
 // 검색 및 영상 수집
 // ========================================
 
+let searchAbortController = null;
+
 async function searchVideos() {
     // API Key 확인
     const apiKeyInput = document.getElementById('apiKey');
@@ -458,8 +461,16 @@ async function searchVideos() {
 
     const maxVideos = parseInt(document.getElementById('maxVideos').value) || 50;
 
+    // 이전 검색이 진행 중이면 중지
+    if (searchAbortController) {
+        searchAbortController.abort();
+    }
+
+    // 새로운 AbortController 생성
+    searchAbortController = new AbortController();
+
     // 로딩 시작
-    showLoading(true);
+    showLoading(true, true); // 중지 버튼 표시
 
     try {
         // DB에 저장된 활성 채널들로부터 영상 검색
@@ -472,7 +483,8 @@ async function searchVideos() {
                 max_videos: maxVideos,
                 min_views_man: parseInt(document.getElementById('minViews').value) || 0,
                 sort: document.getElementById('sortBy').value
-            })
+            }),
+            signal: searchAbortController.signal
         });
 
         const searchResult = await searchResponse.json();
@@ -490,24 +502,40 @@ async function searchVideos() {
         // 결과 옵션 표시
         document.getElementById('resultOptions').style.display = 'flex';
 
+        // 에러가 있으면 로딩 화면에 표시
         if (searchResult.errors && searchResult.errors.length > 0) {
             console.warn('일부 채널에서 오류 발생:', searchResult.errors);
+            displayLoadingErrors(searchResult.errors);
         }
 
-        if (currentVideos.length === 0) {
+        if (currentVideos.length === 0 && (!searchResult.errors || searchResult.errors.length === 0)) {
             alert('검색 결과가 없습니다.\n활성화된 채널이 있는지 확인하세요.');
         }
 
     } catch (error) {
-        console.error('검색 실패:', error);
-        alert('검색에 실패했습니다.\n' + error.message);
+        if (error.name === 'AbortError') {
+            console.log('검색이 사용자에 의해 중지되었습니다.');
+            updateLoadingMessage('검색이 중지되었습니다.');
+        } else {
+            console.error('검색 실패:', error);
+            displayLoadingErrors([{ channel_title: '시스템', error: error.message }]);
+            alert('검색에 실패했습니다.\n' + error.message);
+        }
     } finally {
+        searchAbortController = null;
         showLoading(false);
     }
 }
 
+function abortSearch() {
+    if (searchAbortController) {
+        searchAbortController.abort();
+        updateLoadingMessage('검색 중지 중...');
+    }
+}
+
 async function applyFilters() {
-    showLoading(true);
+    showLoading(true, false);
 
     try {
         const response = await fetch(
@@ -859,8 +887,48 @@ async function saveApiKey(key) {
 // 유틸리티
 // ========================================
 
-function showLoading(show) {
-    document.getElementById('loading').style.display = show ? 'block' : 'none';
+function showLoading(show, showAbortButton = false) {
+    const loading = document.getElementById('loading');
+    const abortBtn = document.getElementById('btnAbort');
+    const loadingErrors = document.getElementById('loadingErrors');
+    const loadingMessage = document.getElementById('loadingMessage');
+
+    if (show) {
+        loading.style.display = 'block';
+        abortBtn.style.display = showAbortButton ? 'inline-block' : 'none';
+        loadingErrors.innerHTML = '';
+        loadingMessage.textContent = '로딩 중...';
+    } else {
+        loading.style.display = 'none';
+        abortBtn.style.display = 'none';
+    }
+}
+
+function updateLoadingMessage(message) {
+    const loadingMessage = document.getElementById('loadingMessage');
+    if (loadingMessage) {
+        loadingMessage.textContent = message;
+    }
+}
+
+function displayLoadingErrors(errors) {
+    const loadingErrors = document.getElementById('loadingErrors');
+    if (!loadingErrors || !errors || errors.length === 0) return;
+
+    loadingErrors.innerHTML = '';
+
+    errors.forEach(error => {
+        const errorItem = document.createElement('div');
+        errorItem.className = 'loading-error-item';
+        errorItem.innerHTML = `
+            <div class="error-channel">${escapeHtml(error.channel_title || '알 수 없는 채널')}</div>
+            <div class="error-message">${escapeHtml(error.error)}</div>
+        `;
+        loadingErrors.appendChild(errorItem);
+    });
+
+    // 에러가 있으면 3초 후 자동으로 닫지 않고 사용자가 확인할 수 있도록 유지
+    updateLoadingMessage(`검색 완료 (${errors.length}개 오류 발생)`);
 }
 
 function openYouTube(videoId) {

@@ -84,7 +84,9 @@
     <!-- 로딩 표시 -->
     <div class="loading" id="loading" style="display: none;">
         <div class="spinner"></div>
-        <p>로딩 중...</p>
+        <p id="loadingMessage">로딩 중...</p>
+        <button class="btn-abort" id="btnAbort" onclick="abortSearch()" style="display: none;">검색 중지</button>
+        <div id="loadingErrors" class="loading-errors"></div>
     </div>
 
     <!-- 결과 카드 그리드 -->
