@@ -50,7 +50,15 @@ class VideoDownloader:
             # yt-dlp 명령어
             command = [
                 "yt-dlp",
-                "-f", "best[ext=mp4]/best",  # mp4 우선, 없으면 최고 품질
+                # 비디오+오디오 병합, YouTube Shorts 최적화
+                "-f", "bv*[height<=1920]+ba/b[height<=1920]/bv*+ba/b",
+                # 병합 출력 형식을 MP4로 지정
+                "--merge-output-format", "mp4",
+                # YouTube 제한 우회 (Android 클라이언트 사용)
+                "--extractor-args", "youtube:player_client=android",
+                # 모바일 User-Agent 사용
+                "--user-agent", "com.google.android.youtube/17.36.4 (Linux; U; Android 12; GB) gzip",
+                # 출력 파일 경로
                 "-o", output_template,
                 f"https://www.youtube.com/watch?v={video_id}"
             ]
