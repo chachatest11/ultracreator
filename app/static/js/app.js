@@ -804,6 +804,11 @@ async function downloadSelected() {
     }
 }
 
+function closeDownloadModal() {
+    const modal = document.getElementById('downloadModal');
+    modal.classList.remove('active');
+}
+
 // ========================================
 // API Key 관리
 // ========================================

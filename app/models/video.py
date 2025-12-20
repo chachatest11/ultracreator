@@ -13,6 +13,8 @@ class Video:
         title: Optional[str] = None,
         published_at: Optional[datetime] = None,
         view_count: Optional[int] = None,
+        like_count: Optional[int] = None,
+        comment_count: Optional[int] = None,
         thumbnail_url: Optional[str] = None,
         duration_seconds: Optional[int] = None,
         is_short: int = 1,
@@ -26,6 +28,8 @@ class Video:
         self.title = title
         self.published_at = published_at
         self.view_count = view_count
+        self.like_count = like_count
+        self.comment_count = comment_count
         self.thumbnail_url = thumbnail_url
         self.duration_seconds = duration_seconds
         self.is_short = is_short
@@ -41,6 +45,8 @@ class Video:
             "title": self.title,
             "published_at": self.published_at.isoformat() if self.published_at else None,
             "view_count": self.view_count,
+            "like_count": self.like_count,
+            "comment_count": self.comment_count,
             "thumbnail_url": self.thumbnail_url,
             "duration_seconds": self.duration_seconds,
             "is_short": self.is_short,
@@ -63,10 +69,12 @@ class Video:
             title=row[3],
             published_at=datetime.fromisoformat(row[4]) if row[4] else None,
             view_count=row[5],
-            thumbnail_url=row[6],
-            duration_seconds=row[7],
-            is_short=row[8],
-            created_at=datetime.fromisoformat(row[9]) if row[9] else None,
-            updated_at=datetime.fromisoformat(row[10]) if row[10] else None,
-            channel_title=row[11] if len(row) > 11 else None
+            like_count=row[6] if len(row) > 6 else 0,
+            comment_count=row[7] if len(row) > 7 else 0,
+            thumbnail_url=row[8] if len(row) > 8 else None,
+            duration_seconds=row[9] if len(row) > 9 else None,
+            is_short=row[10] if len(row) > 10 else 1,
+            created_at=datetime.fromisoformat(row[11]) if len(row) > 11 and row[11] else None,
+            updated_at=datetime.fromisoformat(row[12]) if len(row) > 12 and row[12] else None,
+            channel_title=row[13] if len(row) > 13 else None
         )

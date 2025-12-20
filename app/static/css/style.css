@@ -679,7 +679,7 @@ body {
     color: #e0e0e0;
 }
 
-.btn-close {
+.btn-close, .modal-close {
     background: none;
     border: none;
     color: #999;
@@ -689,7 +689,7 @@ body {
     transition: color 0.3s ease;
 }
 
-.btn-close:hover {
+.btn-close:hover, .modal-close:hover {
     color: #e0e0e0;
 }
 

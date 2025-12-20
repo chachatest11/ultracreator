@@ -56,6 +56,7 @@ def init_db():
             cursor.execute("ALTER TABLE channels ADD COLUMN description TEXT")
         except sqlite3.OperationalError:
             pass  # 컬럼이 이미 존재함
+
         # videos 테이블
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS videos (
@@ -65,6 +66,8 @@ def init_db():
                 title TEXT,
                 published_at DATETIME,
                 view_count INTEGER,
+                like_count INTEGER DEFAULT 0,
+                comment_count INTEGER DEFAULT 0,
                 thumbnail_url TEXT,
                 duration_seconds INTEGER,
                 is_short INTEGER NOT NULL DEFAULT 1,
@@ -72,6 +75,17 @@ def init_db():
                 updated_at DATETIME NOT NULL
             )
         """)
+
+        # like_count, comment_count 컬럼 추가 (기존 DB 마이그레이션)
+        try:
+            cursor.execute("ALTER TABLE videos ADD COLUMN like_count INTEGER DEFAULT 0")
+        except sqlite3.OperationalError:
+            pass  # 컬럼이 이미 존재함
+
+        try:
+            cursor.execute("ALTER TABLE videos ADD COLUMN comment_count INTEGER DEFAULT 0")
+        except sqlite3.OperationalError:
+            pass  # 컬럼이 이미 존재함
 
         # 인덱스 생성
         cursor.execute("""
@@ -87,6 +101,16 @@ def init_db():
         cursor.execute("""
             CREATE INDEX IF NOT EXISTS idx_videos_view_count
             ON videos(view_count DESC)
+        """)
+
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_videos_like_count
+            ON videos(like_count DESC)
+        """)
+
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_videos_comment_count
+            ON videos(comment_count DESC)
         """)
 
         # downloads 테이블

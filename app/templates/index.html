@@ -69,8 +69,14 @@
         <div class="option-group">
             <label for="sortBy">정렬</label>
             <select id="sortBy" onchange="applyFilters()">
-                <option value="latest">최신순</option>
-                <option value="views">조회수순</option>
+                <option value="latest">업로드일시: 최신순</option>
+                <option value="oldest">업로드일시: 오래된순</option>
+                <option value="views_desc">조회수: 높은순</option>
+                <option value="views_asc">조회수: 낮은순</option>
+                <option value="likes_desc">좋아요: 많은순</option>
+                <option value="likes_asc">좋아요: 적은순</option>
+                <option value="comments_desc">댓글수: 많은순</option>
+                <option value="comments_asc">댓글수: 적은순</option>
             </select>
         </div>
 
@@ -202,6 +208,7 @@
     <div class="modal-content">
         <div class="modal-header">
             <h2>다운로드 진행 중</h2>
+            <button class="modal-close" onclick="closeDownloadModal()">&times;</button>
         </div>
         <div class="modal-body">
             <div class="download-progress">

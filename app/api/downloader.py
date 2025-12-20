@@ -50,8 +50,8 @@ class VideoDownloader:
             # yt-dlp 명령어
             command = [
                 "yt-dlp",
-                # 비디오+오디오 병합, YouTube Shorts 최적화
-                "-f", "bv*[height<=1920]+ba/b[height<=1920]/bv*+ba/b",
+                # 비디오+오디오 병합, 최대 가능한 해상도
+                "-f", "bv*+ba/b",
                 # 병합 출력 형식을 MP4로 지정
                 "--merge-output-format", "mp4",
                 # YouTube 제한 우회 (Android 클라이언트 사용)

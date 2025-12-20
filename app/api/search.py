@@ -53,16 +53,20 @@ def search_videos(data: SearchRequest):
     all_videos = []
     errors = []
 
+    # 채널 수에 따라 각 채널별 할당량 계산
+    num_channels = len(channels)
+    videos_per_channel = max(1, data.max_videos // num_channels) if num_channels > 0 else data.max_videos
+
     for channel_row in channels:
         db_channel_id = channel_row[0]
         youtube_channel_id = channel_row[1]
         channel_title = channel_row[2]
 
         try:
-            # YouTube API로 쇼츠 가져오기
+            # YouTube API로 쇼츠 가져오기 (채널별 할당량 적용)
             shorts = youtube_api.get_channel_shorts(
                 youtube_channel_id,
-                max_results=data.max_videos
+                max_results=videos_per_channel
             )
 
             # DB에 upsert
@@ -82,10 +86,14 @@ def search_videos(data: SearchRequest):
                         cursor.execute("""
                             UPDATE videos
                             SET view_count = ?,
+                                like_count = ?,
+                                comment_count = ?,
                                 updated_at = ?
                             WHERE video_id = ?
                         """, (
                             video_data["view_count"],
+                            video_data["like_count"],
+                            video_data["comment_count"],
                             now,
                             video_data["video_id"]
                         ))
@@ -94,15 +102,17 @@ def search_videos(data: SearchRequest):
                         cursor.execute("""
                             INSERT INTO videos (
                                 channel_id, video_id, title, published_at,
-                                view_count, thumbnail_url, duration_seconds,
+                                view_count, like_count, comment_count, thumbnail_url, duration_seconds,
                                 is_short, created_at, updated_at
-                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """, (
                             video_data["channel_id"],
                             video_data["video_id"],
                             video_data["title"],
                             video_data["published_at"],
                             video_data["view_count"],
+                            video_data["like_count"],
+                            video_data["comment_count"],
                             video_data["thumbnail_url"],
                             video_data["duration_seconds"],
                             video_data["is_short"],
@@ -136,12 +146,22 @@ def search_videos(data: SearchRequest):
         min_views = data.min_views_man * 10000
 
         # 정렬 조건
-        order_by = "v.published_at DESC" if data.sort == "latest" else "v.view_count DESC"
+        sort_options = {
+            "latest": "v.published_at DESC",
+            "oldest": "v.published_at ASC",
+            "views_desc": "v.view_count DESC",
+            "views_asc": "v.view_count ASC",
+            "likes_desc": "v.like_count DESC",
+            "likes_asc": "v.like_count ASC",
+            "comments_desc": "v.comment_count DESC",
+            "comments_asc": "v.comment_count ASC"
+        }
+        order_by = sort_options.get(data.sort, "v.published_at DESC")
 
         # 카테고리의 채널들로부터 영상 조회
         cursor.execute(f"""
             SELECT v.id, v.channel_id, v.video_id, v.title, v.published_at,
-                   v.view_count, v.thumbnail_url, v.duration_seconds,
+                   v.view_count, v.like_count, v.comment_count, v.thumbnail_url, v.duration_seconds,
                    v.is_short, v.created_at, v.updated_at, c.title as channel_title
             FROM videos v
             INNER JOIN channels c ON v.channel_id = c.channel_id
@@ -177,12 +197,24 @@ def get_videos(
         cursor = conn.cursor()
 
         min_views = min_views_man * 10000
-        order_by = "v.published_at DESC" if sort == "latest" else "v.view_count DESC"
+
+        # 정렬 조건
+        sort_options = {
+            "latest": "v.published_at DESC",
+            "oldest": "v.published_at ASC",
+            "views_desc": "v.view_count DESC",
+            "views_asc": "v.view_count ASC",
+            "likes_desc": "v.like_count DESC",
+            "likes_asc": "v.like_count ASC",
+            "comments_desc": "v.comment_count DESC",
+            "comments_asc": "v.comment_count ASC"
+        }
+        order_by = sort_options.get(sort, "v.published_at DESC")
 
         if category_id:
             cursor.execute(f"""
                 SELECT v.id, v.channel_id, v.video_id, v.title, v.published_at,
-                       v.view_count, v.thumbnail_url, v.duration_seconds,
+                       v.view_count, v.like_count, v.comment_count, v.thumbnail_url, v.duration_seconds,
                        v.is_short, v.created_at, v.updated_at, c.title as channel_title
                 FROM videos v
                 INNER JOIN channels c ON v.channel_id = c.channel_id
@@ -195,7 +227,7 @@ def get_videos(
         else:
             cursor.execute(f"""
                 SELECT v.id, v.channel_id, v.video_id, v.title, v.published_at,
-                       v.view_count, v.thumbnail_url, v.duration_seconds,
+                       v.view_count, v.like_count, v.comment_count, v.thumbnail_url, v.duration_seconds,
                        v.is_short, v.created_at, v.updated_at, c.title as channel_title
                 FROM videos v
                 INNER JOIN channels c ON v.channel_id = c.channel_id

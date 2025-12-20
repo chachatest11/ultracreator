@@ -243,6 +243,8 @@ class YouTubeAPI:
                         "title": snippet.get("title"),
                         "published_at": snippet.get("publishedAt"),
                         "view_count": int(statistics.get("viewCount", 0)),
+                        "like_count": int(statistics.get("likeCount", 0)),
+                        "comment_count": int(statistics.get("commentCount", 0)),
                         "thumbnail_url": thumbnail_url,
                         "duration_seconds": duration_seconds,
                         "is_short": is_short,
