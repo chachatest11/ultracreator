@@ -58,25 +58,48 @@ def get_channels(category_id: Optional[int] = None):
     """채널 목록 조회"""
     with get_db() as conn:
         cursor = conn.cursor()
-        if category_id:
+        if category_id and category_id > 0:
+            # 특정 카테고리의 채널만
             cursor.execute("""
-                SELECT id, category_id, channel_input, channel_id, title,
-                       subscriber_count, country, language_hint, is_active,
-                       created_at, updated_at
-                FROM channels
-                WHERE category_id = ?
-                ORDER BY created_at DESC
+                SELECT c.id, c.category_id, c.channel_input, c.channel_id, c.title,
+                       c.description, c.subscriber_count, c.country, c.language_hint, c.is_active,
+                       c.created_at, c.updated_at, cat.name as category_name
+                FROM channels c
+                LEFT JOIN categories cat ON c.category_id = cat.id
+                WHERE c.category_id = ?
+                ORDER BY c.created_at DESC
             """, (category_id,))
         else:
+            # 모든 채널 (전체 탭)
             cursor.execute("""
-                SELECT id, category_id, channel_input, channel_id, title,
-                       subscriber_count, country, language_hint, is_active,
-                       created_at, updated_at
-                FROM channels
-                ORDER BY created_at DESC
+                SELECT c.id, c.category_id, c.channel_input, c.channel_id, c.title,
+                       c.description, c.subscriber_count, c.country, c.language_hint, c.is_active,
+                       c.created_at, c.updated_at, cat.name as category_name
+                FROM channels c
+                LEFT JOIN categories cat ON c.category_id = cat.id
+                ORDER BY c.created_at DESC
             """)
         rows = cursor.fetchall()
-        channels = [Channel.from_row(row).to_dict() for row in rows]
+
+        channels = []
+        for row in rows:
+            channel_dict = {
+                "id": row[0],
+                "category_id": row[1],
+                "channel_input": row[2],
+                "channel_id": row[3],
+                "title": row[4],
+                "description": row[5],
+                "subscriber_count": row[6],
+                "country": row[7],
+                "language_hint": row[8],
+                "is_active": row[9],
+                "created_at": row[10],
+                "updated_at": row[11],
+                "category_name": row[12]
+            }
+            channels.append(channel_dict)
+
         return {"channels": channels}
 
 
@@ -139,12 +162,14 @@ def bulk_upsert_channels(data: BulkUpsertRequest):
                     cursor.execute("""
                         UPDATE channels
                         SET title = ?,
+                            description = ?,
                             subscriber_count = ?,
                             country = ?,
                             updated_at = ?
                         WHERE category_id = ? AND channel_id = ?
                     """, (
                         channel_info["title"],
+                        channel_info.get("description"),
                         channel_info["subscriber_count"],
                         channel_info.get("country"),
                         now,
@@ -157,14 +182,15 @@ def bulk_upsert_channels(data: BulkUpsertRequest):
                     cursor.execute("""
                         INSERT INTO channels (
                             category_id, channel_input, channel_id, title,
-                            subscriber_count, country, is_active,
+                            description, subscriber_count, country, is_active,
                             created_at, updated_at
-                        ) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
                     """, (
                         data.category_id,
                         channel_input,
                         channel_id,
                         channel_info["title"],
+                        channel_info.get("description"),
                         channel_info["subscriber_count"],
                         channel_info.get("country"),
                         now,
@@ -249,6 +275,41 @@ def delete_channel(channel_id: int):
         return {"success": True, "message": "채널이 삭제되었습니다"}
 
 
+class MoveChannelRequest(BaseModel):
+    new_category_id: int
+
+
+@router.put("/{channel_id}/move_category")
+def move_channel_category(channel_id: int, data: MoveChannelRequest):
+    """채널을 다른 카테고리로 이동"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        # 채널 존재 확인
+        cursor.execute("SELECT id FROM channels WHERE id = ?", (channel_id,))
+        if not cursor.fetchone():
+            raise HTTPException(status_code=404, detail="채널을 찾을 수 없습니다")
+
+        # 카테고리 존재 확인
+        cursor.execute("SELECT id FROM categories WHERE id = ?", (data.new_category_id,))
+        if not cursor.fetchone():
+            raise HTTPException(status_code=404, detail="카테고리를 찾을 수 없습니다")
+
+        # 카테고리 변경
+        cursor.execute("""
+            UPDATE channels
+            SET category_id = ?, updated_at = ?
+            WHERE id = ?
+        """, (data.new_category_id, datetime.now().isoformat(), channel_id))
+        conn.commit()
+
+        return {
+            "success": True,
+            "channel_id": channel_id,
+            "new_category_id": data.new_category_id
+        }
+
+
 class RefreshChannelRequest(BaseModel):
     api_key: Optional[str] = None
 
@@ -285,12 +346,14 @@ def refresh_channel_info(channel_id: int, data: RefreshChannelRequest):
             cursor.execute("""
                 UPDATE channels
                 SET title = ?,
+                    description = ?,
                     subscriber_count = ?,
                     country = ?,
                     updated_at = ?
                 WHERE id = ?
             """, (
                 channel_info["title"],
+                channel_info.get("description"),
                 channel_info["subscriber_count"],
                 channel_info.get("country"),
                 now,
@@ -301,6 +364,7 @@ def refresh_channel_info(channel_id: int, data: RefreshChannelRequest):
             return {
                 "success": True,
                 "title": channel_info["title"],
+                "description": channel_info.get("description"),
                 "subscriber_count": channel_info["subscriber_count"],
                 "country": channel_info.get("country")
             }
@@ -386,12 +450,14 @@ async def upload_md_file(
                     cursor.execute("""
                         UPDATE channels
                         SET title = ?,
+                            description = ?,
                             subscriber_count = ?,
                             country = ?,
                             updated_at = ?
                         WHERE category_id = ? AND channel_id = ?
                     """, (
                         channel_info["title"],
+                        channel_info.get("description"),
                         channel_info["subscriber_count"],
                         channel_info.get("country"),
                         now,
@@ -404,14 +470,15 @@ async def upload_md_file(
                     cursor.execute("""
                         INSERT INTO channels (
                             category_id, channel_input, channel_id, title,
-                            subscriber_count, country, is_active,
+                            description, subscriber_count, country, is_active,
                             created_at, updated_at
-                        ) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
                     """, (
                         category_id,
                         url,
                         channel_id,
                         channel_info["title"],
+                        channel_info.get("description"),
                         channel_info["subscriber_count"],
                         channel_info.get("country"),
                         now,

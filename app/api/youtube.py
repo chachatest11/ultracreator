@@ -142,6 +142,7 @@ class YouTubeAPI:
             return {
                 "channel_id": channel_id,
                 "title": snippet.get("title"),
+                "description": snippet.get("description"),
                 "subscriber_count": int(statistics.get("subscriberCount", 0)),
                 "country": snippet.get("country"),
                 "thumbnail": snippet.get("thumbnails", {}).get("default", {}).get("url")

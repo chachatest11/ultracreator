@@ -13,6 +13,12 @@ function selectCategory(categoryId) {
         }
     });
 
+    // 채널 추가 버튼 표시/숨김 ('전체' 탭에서는 숨김)
+    const addChannelBtn = document.querySelector('.channels-header .btn-primary');
+    if (addChannelBtn) {
+        addChannelBtn.style.display = categoryId === 0 ? 'none' : 'block';
+    }
+
     // 채널 목록 다시 로드
     loadChannels();
 
@@ -157,22 +163,32 @@ async function loadChannels() {
         data.channels.forEach(channel => {
             const card = document.createElement('div');
             card.className = `channel-card ${channel.is_active ? '' : 'inactive'}`;
+
+            // 설명 툴팁용 텍스트 (최대 200자)
+            const descriptionText = channel.description ?
+                (channel.description.length > 200 ? channel.description.substring(0, 200) + '...' : channel.description) :
+                '채널 설명 없음';
+
             card.innerHTML = `
                 <div class="channel-info">
                     <div class="channel-title">
                         <a href="https://www.youtube.com/channel/${channel.channel_id}"
                            target="_blank"
                            class="channel-title-link"
-                           title="채널 보기">
+                           title="${escapeHtml(descriptionText)}">
                             ${escapeHtml(channel.title || channel.channel_id)}
                         </a>
                     </div>
                     <div class="channel-meta">
                         구독자 ${formatSubscriberCount(channel.subscriber_count || 0)}
                         ${channel.country ? `· ${channel.country}` : ''}
+                        ${currentCategoryId === 0 && channel.category_name ? `· <span class="category-badge">${escapeHtml(channel.category_name)}</span>` : ''}
                     </div>
                 </div>
                 <div class="channel-actions">
+                    <select class="category-move-select" onchange="moveChannelCategory(${channel.id}, this.value)" title="카테고리 이동">
+                        <option value="">이동...</option>
+                    </select>
                     <button class="btn-refresh-channel" onclick="refreshChannelInfo(${channel.id})" title="채널 정보 새로고침">🔄</button>
                     <label class="toggle-switch">
                         <input type="checkbox"
@@ -184,9 +200,53 @@ async function loadChannels() {
                 </div>
             `;
             channelsList.appendChild(card);
+
+            // 카테고리 옵션 동적 로드
+            loadCategoryOptions(card.querySelector('.category-move-select'), channel.category_id);
         });
     } catch (error) {
         console.error('채널 로드 실패:', error);
+    }
+}
+
+async function loadCategoryOptions(selectElement, currentCategoryId) {
+    try {
+        const response = await fetch('/api/categories/');
+        const data = await response.json();
+
+        data.categories.forEach(category => {
+            if (category.id !== currentCategoryId) {
+                const option = document.createElement('option');
+                option.value = category.id;
+                option.textContent = category.name;
+                selectElement.appendChild(option);
+            }
+        });
+    } catch (error) {
+        console.error('카테고리 옵션 로드 실패:', error);
+    }
+}
+
+async function moveChannelCategory(channelId, newCategoryId) {
+    if (!newCategoryId) return;
+
+    try {
+        const response = await fetch(`/api/channels/${channelId}/move_category`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ new_category_id: parseInt(newCategoryId) })
+        });
+
+        if (response.ok) {
+            alert('채널이 이동되었습니다.');
+            loadChannels();
+        } else {
+            const error = await response.json();
+            alert(error.detail || '채널 이동 실패');
+        }
+    } catch (error) {
+        console.error('채널 이동 실패:', error);
+        alert('채널 이동에 실패했습니다.');
     }
 }
 

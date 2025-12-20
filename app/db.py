@@ -39,6 +39,7 @@ def init_db():
                 channel_input TEXT NOT NULL,
                 channel_id TEXT NOT NULL,
                 title TEXT,
+                description TEXT,
                 subscriber_count INTEGER,
                 country TEXT,
                 language_hint TEXT,
@@ -50,6 +51,11 @@ def init_db():
             )
         """)
 
+        # description 컬럼 추가 (기존 DB 마이그레이션)
+        try:
+            cursor.execute("ALTER TABLE channels ADD COLUMN description TEXT")
+        except sqlite3.OperationalError:
+            pass  # 컬럼이 이미 존재함
         # videos 테이블
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS videos (

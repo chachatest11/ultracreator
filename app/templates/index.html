@@ -14,9 +14,15 @@
     <!-- 카테고리 탭 -->
     <div class="category-tabs-container">
         <div class="category-tabs" id="categoryTabs">
+            <button
+                class="category-tab active"
+                data-category-id="0"
+                onclick="selectCategory(0)">
+                전체
+            </button>
             {% for category in categories %}
             <button
-                class="category-tab {% if loop.index == 1 %}active{% endif %}"
+                class="category-tab"
                 data-category-id="{{ category.id }}"
                 onclick="selectCategory({{ category.id }})">
                 {{ category.name }}
@@ -209,7 +215,7 @@
 
 <script>
 // 전역 변수
-let currentCategoryId = {{ categories[0].id if categories else 1 }};
+let currentCategoryId = 0;  // 0 = 전체 탭
 let currentVideos = [];
 let selectedVideoIds = new Set();
 let apiKey = '';
@@ -218,6 +224,12 @@ let apiKey = '';
 window.addEventListener('DOMContentLoaded', async function() {
     // API Key DB에서 불러오기
     await loadApiKey();
+
+    // 채널 추가 버튼 숨김 ('전체' 탭에서 시작하므로)
+    const addChannelBtn = document.querySelector('.channels-header .btn-primary');
+    if (addChannelBtn) {
+        addChannelBtn.style.display = 'none';
+    }
 
     // 채널 목록 로드
     loadChannels();
