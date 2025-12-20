@@ -531,30 +531,173 @@ async function downloadSelected() {
 // API Key 관리
 // ========================================
 
-async function loadApiKey() {
+function openApiKeyModal() {
+    loadApiKeys();
+    document.getElementById('apiKeyModal').classList.add('active');
+}
+
+function closeApiKeyModal() {
+    document.getElementById('apiKeyModal').classList.remove('active');
+}
+
+async function loadApiKeys() {
     try {
-        const response = await fetch('/api/settings/youtube_api_key');
+        const response = await fetch('/api/api_keys/');
         const data = await response.json();
 
-        if (data.value) {
-            document.getElementById('apiKey').value = data.value;
-            apiKey = data.value;
+        const apiKeyList = document.getElementById('apiKeyList');
+        apiKeyList.innerHTML = '';
+
+        if (data.api_keys.length === 0) {
+            apiKeyList.innerHTML = '<p style="color: #999; text-align: center; padding: 20px;">등록된 API 키가 없습니다.</p>';
+            return;
+        }
+
+        data.api_keys.forEach(apiKey => {
+            const item = document.createElement('div');
+            item.className = 'category-item';
+
+            // 날짜 포맷팅
+            const createdDate = new Date(apiKey.created_at).toLocaleDateString('ko-KR');
+
+            // 상태 표시
+            let statusBadge = '';
+            if (apiKey.quota_exceeded) {
+                statusBadge = '<span style="color: #f44336; font-size: 12px; margin-left: 8px;">⚠ 쿼터 초과</span>';
+            } else if (!apiKey.is_active) {
+                statusBadge = '<span style="color: #999; font-size: 12px; margin-left: 8px;">비활성</span>';
+            } else {
+                statusBadge = '<span style="color: #4caf50; font-size: 12px; margin-left: 8px;">✓ 활성</span>';
+            }
+
+            item.innerHTML = `
+                <div>
+                    <div class="category-item-name">
+                        ${apiKey.api_key}
+                        ${statusBadge}
+                    </div>
+                    <div style="font-size: 11px; color: #666; margin-top: 4px;">
+                        ${apiKey.name ? apiKey.name + ' · ' : ''}${createdDate}
+                        ${apiKey.last_used_at ? ' · 마지막 사용: ' + formatDate(apiKey.last_used_at) : ''}
+                    </div>
+                </div>
+                <div class="category-item-actions">
+                    ${apiKey.quota_exceeded ? `
+                        <button class="btn-edit" onclick="resetQuota(${apiKey.id})">쿼터 초기화</button>
+                    ` : ''}
+                    <button class="btn-delete" onclick="deleteApiKey(${apiKey.id})">삭제</button>
+                </div>
+            `;
+            apiKeyList.appendChild(item);
+        });
+    } catch (error) {
+        console.error('API 키 로드 실패:', error);
+        alert('API 키를 불러오는데 실패했습니다.');
+    }
+}
+
+async function addApiKey() {
+    const keyInput = document.getElementById('newApiKey');
+    const nameInput = document.getElementById('newApiKeyName');
+    const key = keyInput.value.trim();
+    const name = nameInput.value.trim();
+
+    if (!key) {
+        alert('API 키를 입력하세요.');
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/api_keys/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                api_key: key,
+                name: name || null,
+                priority: 0
+            })
+        });
+
+        if (response.ok) {
+            keyInput.value = '';
+            nameInput.value = '';
+            loadApiKeys();
+
+            // 첫 번째 API 키라면 자동으로 입력란에 설정
+            const data = await response.json();
+            if (!apiKey) {
+                document.getElementById('apiKey').value = key;
+                apiKey = key;
+            }
+        } else {
+            const error = await response.json();
+            alert(error.detail || 'API 키 추가 실패');
+        }
+    } catch (error) {
+        console.error('API 키 추가 실패:', error);
+        alert('API 키 추가에 실패했습니다.');
+    }
+}
+
+async function deleteApiKey(id) {
+    if (!confirm('이 API 키를 삭제하시겠습니까?')) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/api_keys/${id}`, {
+            method: 'DELETE'
+        });
+
+        if (response.ok) {
+            loadApiKeys();
+        } else {
+            const error = await response.json();
+            alert(error.detail || 'API 키 삭제 실패');
+        }
+    } catch (error) {
+        console.error('API 키 삭제 실패:', error);
+        alert('API 키 삭제에 실패했습니다.');
+    }
+}
+
+async function resetQuota(id) {
+    try {
+        const response = await fetch(`/api/api_keys/${id}/reset_quota`, {
+            method: 'POST'
+        });
+
+        if (response.ok) {
+            loadApiKeys();
+            alert('쿼터가 초기화되었습니다.');
+        } else {
+            const error = await response.json();
+            alert(error.detail || '쿼터 초기화 실패');
+        }
+    } catch (error) {
+        console.error('쿼터 초기화 실패:', error);
+        alert('쿼터 초기화에 실패했습니다.');
+    }
+}
+
+async function loadApiKey() {
+    try {
+        const response = await fetch('/api/api_keys/active');
+        const data = await response.json();
+
+        if (data.api_key && data.api_key.api_key) {
+            document.getElementById('apiKey').value = data.api_key.api_key;
+            apiKey = data.api_key.api_key;
         }
     } catch (error) {
         console.error('API Key 로드 실패:', error);
+        // 사용 가능한 API 키가 없어도 무시
     }
 }
 
 async function saveApiKey(key) {
-    try {
-        await fetch('/api/settings/youtube_api_key', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ value: key })
-        });
-    } catch (error) {
-        console.error('API Key 저장 실패:', error);
-    }
+    // 이 함수는 더 이상 사용되지 않음 (DB에 직접 저장하므로)
+    // 하지만 기존 코드와의 호환성을 위해 남겨둠
 }
 
 // ========================================
@@ -625,10 +768,15 @@ function escapeHtml(text) {
 // 모달 외부 클릭 시 닫기
 window.addEventListener('click', function(event) {
     const categoryModal = document.getElementById('categoryModal');
+    const apiKeyModal = document.getElementById('apiKeyModal');
     const downloadModal = document.getElementById('downloadModal');
 
     if (event.target === categoryModal) {
         closeCategoryModal();
+    }
+
+    if (event.target === apiKeyModal) {
+        closeApiKeyModal();
     }
 
     // 다운로드 모달은 외부 클릭으로 안 닫히게

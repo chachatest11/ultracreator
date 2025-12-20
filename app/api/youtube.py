@@ -5,6 +5,11 @@ from datetime import datetime
 import isodate
 
 
+class QuotaExceededException(Exception):
+    """YouTube API 쿼터 초과 예외"""
+    pass
+
+
 class YouTubeAPI:
     """YouTube Data API v3 래퍼"""
 
@@ -18,6 +23,16 @@ class YouTubeAPI:
         params["key"] = self.api_key
         url = f"{self.BASE_URL}/{endpoint}"
         response = requests.get(url, params=params, timeout=30)
+
+        # 쿼터 초과 에러 체크
+        if response.status_code == 403:
+            try:
+                error_data = response.json()
+                if error_data.get("error", {}).get("errors", [{}])[0].get("reason") == "quotaExceeded":
+                    raise QuotaExceededException("YouTube API 쿼터가 초과되었습니다")
+            except (ValueError, KeyError):
+                pass
+
         response.raise_for_status()
         return response.json()
 
@@ -66,18 +81,16 @@ class YouTubeAPI:
     def _resolve_handle_to_channel_id(self, handle: str) -> Optional[str]:
         """핸들(@handle)을 channelId로 변환"""
         try:
-            # YouTube Data API v3는 핸들 직접 검색을 공식 지원하지 않으므로
-            # search API를 활용
-            result = self._request("search", {
-                "part": "snippet",
-                "q": f"@{handle}",
-                "type": "channel",
-                "maxResults": 1
+            # YouTube Data API v3의 forHandle 파라미터 사용
+            result = self._request("channels", {
+                "part": "id",
+                "forHandle": handle  # @ 없이 핸들명만
             })
 
             if result.get("items"):
-                return result["items"][0]["snippet"]["channelId"]
-        except Exception:
+                return result["items"][0]["id"]
+        except Exception as e:
+            print(f"Error resolving handle {handle}: {e}")
             pass
         return None
 

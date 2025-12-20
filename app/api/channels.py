@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import List, Optional
 from ..db import get_db
 from ..models import Channel
-from .youtube import YouTubeAPI
+from .youtube import YouTubeAPI, QuotaExceededException
 
 router = APIRouter(prefix="/api/channels", tags=["channels"])
 
@@ -12,7 +12,44 @@ router = APIRouter(prefix="/api/channels", tags=["channels"])
 class BulkUpsertRequest(BaseModel):
     category_id: int
     channel_inputs: List[str]
-    api_key: str
+    api_key: Optional[str] = None  # Optional: DB에서 자동 가져오기
+
+
+def get_available_api_key(provided_key: Optional[str] = None) -> str:
+    """사용 가능한 API 키 가져오기"""
+    if provided_key:
+        return provided_key
+
+    # DB에서 사용 가능한 API 키 가져오기
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT api_key FROM api_keys
+            WHERE is_active = 1 AND quota_exceeded = 0
+            ORDER BY priority ASC, created_at ASC
+            LIMIT 1
+        """)
+        row = cursor.fetchone()
+
+        if not row:
+            raise HTTPException(
+                status_code=400,
+                detail="사용 가능한 API 키가 없습니다. API 키를 추가하거나 쿼터를 초기화하세요."
+            )
+
+        return row[0]
+
+
+def mark_api_key_quota_exceeded(api_key: str):
+    """API 키를 쿼터 초과 상태로 표시"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE api_keys
+            SET quota_exceeded = 1, updated_at = ?
+            WHERE api_key = ?
+        """, (datetime.now().isoformat(), api_key))
+        conn.commit()
 
 
 @router.get("/")
@@ -51,13 +88,12 @@ def bulk_upsert_channels(data: BulkUpsertRequest):
     2. YouTube API로 채널 정보 가져오기
     3. DB에 upsert (없으면 INSERT, 있으면 UPDATE)
     """
-    if not data.api_key:
-        raise HTTPException(status_code=400, detail="YouTube API Key가 필요합니다")
-
     if not data.channel_inputs:
         raise HTTPException(status_code=400, detail="채널 입력이 비어있습니다")
 
-    youtube_api = YouTubeAPI(data.api_key)
+    # API 키 가져오기 (제공된 키 또는 DB에서 자동)
+    api_key = get_available_api_key(data.api_key)
+    youtube_api = YouTubeAPI(api_key)
     results = []
     errors = []
 
@@ -144,6 +180,14 @@ def bulk_upsert_channels(data: BulkUpsertRequest):
                     "action": action
                 })
 
+        except QuotaExceededException as e:
+            # API 키 쿼터 초과 처리
+            mark_api_key_quota_exceeded(api_key)
+            errors.append({
+                "input": channel_input,
+                "error": f"API 쿼터가 초과되었습니다: {str(e)}"
+            })
+            break  # 쿼터 초과 시 더 이상 진행하지 않음
         except Exception as e:
             errors.append({
                 "input": channel_input,

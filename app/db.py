@@ -105,6 +105,21 @@ def init_db():
             )
         """)
 
+        # api_keys 테이블
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS api_keys (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                api_key TEXT NOT NULL UNIQUE,
+                name TEXT,
+                is_active INTEGER NOT NULL DEFAULT 1,
+                priority INTEGER NOT NULL DEFAULT 0,
+                quota_exceeded INTEGER NOT NULL DEFAULT 0,
+                last_used_at DATETIME,
+                created_at DATETIME NOT NULL,
+                updated_at DATETIME NOT NULL
+            )
+        """)
+
         # 기본 카테고리 삽입
         cursor.execute("""
             INSERT OR IGNORE INTO categories (name, created_at)

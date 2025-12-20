@@ -4,14 +4,15 @@ from datetime import datetime
 from typing import List, Optional
 from ..db import get_db
 from ..models import Video
-from .youtube import YouTubeAPI
+from .youtube import YouTubeAPI, QuotaExceededException
+from .channels import get_available_api_key, mark_api_key_quota_exceeded
 
 router = APIRouter(prefix="/api/search", tags=["search"])
 
 
 class SearchRequest(BaseModel):
     category_id: int
-    api_key: str
+    api_key: Optional[str] = None  # Optional: DB에서 자동 가져오기
     max_videos: int = 50
     min_views_man: int = 0  # 만 단위 (10 => 100,000)
     sort: str = "latest"  # latest or views
@@ -27,10 +28,9 @@ def search_videos(data: SearchRequest):
     3. DB에 upsert
     4. 필터/정렬 적용 후 반환
     """
-    if not data.api_key:
-        raise HTTPException(status_code=400, detail="YouTube API Key가 필요합니다")
-
-    youtube_api = YouTubeAPI(data.api_key)
+    # API 키 가져오기 (제공된 키 또는 DB에서 자동)
+    api_key = get_available_api_key(data.api_key)
+    youtube_api = YouTubeAPI(api_key)
 
     # 1. 활성 채널 로드
     with get_db() as conn:
@@ -114,6 +114,14 @@ def search_videos(data: SearchRequest):
 
             all_videos.extend(shorts)
 
+        except QuotaExceededException as e:
+            # API 키 쿼터 초과 처리
+            mark_api_key_quota_exceeded(api_key)
+            errors.append({
+                "channel_title": channel_title,
+                "error": f"API 쿼터가 초과되었습니다: {str(e)}"
+            })
+            break  # 쿼터 초과 시 더 이상 진행하지 않음
         except Exception as e:
             errors.append({
                 "channel_title": channel_title,
