@@ -159,13 +159,20 @@ async function loadChannels() {
             card.className = `channel-card ${channel.is_active ? '' : 'inactive'}`;
             card.innerHTML = `
                 <div class="channel-info">
-                    <div class="channel-title">${escapeHtml(channel.title || channel.channel_id)}</div>
+                    <div class="channel-title">
+                        ${escapeHtml(channel.title || channel.channel_id)}
+                        <a href="https://www.youtube.com/channel/${channel.channel_id}"
+                           target="_blank"
+                           class="channel-link"
+                           title="채널 보기">🔗</a>
+                    </div>
                     <div class="channel-meta">
                         구독자 ${formatSubscriberCount(channel.subscriber_count || 0)}
                         ${channel.country ? `· ${channel.country}` : ''}
                     </div>
                 </div>
                 <div class="channel-actions">
+                    <button class="btn-refresh-channel" onclick="refreshChannelInfo(${channel.id})" title="채널 정보 새로고침">🔄</button>
                     <label class="toggle-switch">
                         <input type="checkbox"
                                ${channel.is_active ? 'checked' : ''}
@@ -184,11 +191,34 @@ async function loadChannels() {
 
 function openAddChannelModal() {
     document.getElementById('addChannelModal').classList.add('active');
+    // 기본적으로 수동 입력 탭 표시
+    switchUploadTab('manual');
 }
 
 function closeAddChannelModal() {
     document.getElementById('addChannelModal').classList.remove('active');
     document.getElementById('channelInput').value = '';
+    document.getElementById('mdFileInput').value = '';
+    document.getElementById('filePreview').style.display = 'none';
+}
+
+function switchUploadTab(tabName) {
+    // 탭 버튼 활성화
+    document.querySelectorAll('.upload-tab').forEach(tab => {
+        tab.classList.remove('active');
+    });
+    event?.target?.classList.add('active') ||
+        document.querySelector(`.upload-tab:${tabName === 'manual' ? 'first' : 'last'}-child`)?.classList.add('active');
+
+    // 탭 콘텐츠 표시
+    document.getElementById('manualInputTab').classList.remove('active');
+    document.getElementById('fileUploadTab').classList.remove('active');
+
+    if (tabName === 'manual') {
+        document.getElementById('manualInputTab').classList.add('active');
+    } else {
+        document.getElementById('fileUploadTab').classList.add('active');
+    }
 }
 
 async function addChannels() {
@@ -281,6 +311,131 @@ async function deleteChannel(channelId) {
         console.error('채널 삭제 실패:', error);
         alert('채널 삭제에 실패했습니다.');
     }
+}
+
+async function refreshChannelInfo(channelId) {
+    const apiKeyInput = document.getElementById('apiKey');
+    const apiKey = apiKeyInput.value.trim();
+
+    if (!apiKey) {
+        alert('YouTube API Key를 입력하세요.');
+        apiKeyInput.focus();
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/channels/${channelId}/refresh`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ api_key: apiKey })
+        });
+
+        if (response.ok) {
+            const result = await response.json();
+            alert(`채널 정보가 업데이트되었습니다.\n\n제목: ${result.title}\n구독자: ${formatSubscriberCount(result.subscriber_count)}`);
+            loadChannels();
+        } else {
+            const error = await response.json();
+            alert(error.detail || '채널 정보 업데이트 실패');
+        }
+    } catch (error) {
+        console.error('채널 정보 업데이트 실패:', error);
+        alert('채널 정보 업데이트에 실패했습니다.');
+    }
+}
+
+async function uploadMdFile() {
+    const apiKeyInput = document.getElementById('apiKey');
+    apiKey = apiKeyInput.value.trim();
+
+    if (!apiKey) {
+        alert('YouTube API Key를 입력하세요.');
+        apiKeyInput.focus();
+        return;
+    }
+
+    const fileInput = document.getElementById('mdFileInput');
+    const file = fileInput.files[0];
+
+    if (!file) {
+        alert('파일을 선택하세요.');
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('category_id', currentCategoryId);
+    formData.append('api_key', apiKey);
+
+    showLoading(true);
+
+    try {
+        const response = await fetch('/api/channels/upload_md', {
+            method: 'POST',
+            body: formData
+        });
+
+        const result = await response.json();
+
+        if (result.success > 0) {
+            alert(`${result.success}개 채널이 추가되었습니다.${result.failed > 0 ? `\n실패: ${result.failed}개` : ''}\n\n발견된 URL: ${result.urls_found}개`);
+            closeAddChannelModal();
+            loadChannels();
+        } else {
+            alert('채널 추가에 실패했습니다.\n' + (result.errors || []).map(e => e.error).join('\n'));
+        }
+    } catch (error) {
+        console.error('파일 업로드 실패:', error);
+        alert('파일 업로드에 실패했습니다.');
+    } finally {
+        showLoading(false);
+    }
+}
+
+// MD 파일 선택 시 미리보기
+document.addEventListener('DOMContentLoaded', function() {
+    const fileInput = document.getElementById('mdFileInput');
+    if (fileInput) {
+        fileInput.addEventListener('change', async function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const text = await file.text();
+            const urls = extractYouTubeUrls(text);
+
+            const preview = document.getElementById('filePreview');
+            const urlList = document.getElementById('urlList');
+
+            if (urls.length > 0) {
+                urlList.innerHTML = urls.map(url =>
+                    `<div style="font-size: 11px; color: #2196f3; padding: 4px 0; border-bottom: 1px solid #1a1a1a;">${escapeHtml(url)}</div>`
+                ).join('');
+                preview.style.display = 'block';
+            } else {
+                preview.style.display = 'none';
+                alert('파일에서 YouTube URL을 찾을 수 없습니다.');
+            }
+        });
+    }
+});
+
+function extractYouTubeUrls(text) {
+    const patterns = [
+        /https?:\/\/(?:www\.)?youtube\.com\/channel\/([a-zA-Z0-9_-]+)/g,
+        /https?:\/\/(?:www\.)?youtube\.com\/@([a-zA-Z0-9_-]+)/g,
+        /https?:\/\/(?:www\.)?youtube\.com\/c\/([a-zA-Z0-9_-]+)/g,
+        /https?:\/\/(?:www\.)?youtube\.com\/user\/([a-zA-Z0-9_-]+)/g,
+    ];
+
+    const urls = new Set();
+    patterns.forEach(pattern => {
+        const matches = text.matchAll(pattern);
+        for (const match of matches) {
+            urls.add(match[0]);
+        }
+    });
+
+    return Array.from(urls);
 }
 
 // ========================================

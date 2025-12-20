@@ -1,7 +1,8 @@
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, UploadFile, File, Form
 from pydantic import BaseModel
 from datetime import datetime
 from typing import List, Optional
+import re
 from ..db import get_db
 from ..models import Channel
 from .youtube import YouTubeAPI, QuotaExceededException
@@ -246,3 +247,204 @@ def delete_channel(channel_id: int):
         conn.commit()
 
         return {"success": True, "message": "채널이 삭제되었습니다"}
+
+
+class RefreshChannelRequest(BaseModel):
+    api_key: Optional[str] = None
+
+
+@router.post("/{channel_id}/refresh")
+def refresh_channel_info(channel_id: int, data: RefreshChannelRequest):
+    """채널 정보 새로고침 (구독자수, 설명 등 업데이트)"""
+    # API 키 가져오기
+    api_key = get_available_api_key(data.api_key)
+    youtube_api = YouTubeAPI(api_key)
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        # 채널 조회
+        cursor.execute("""
+            SELECT channel_id FROM channels WHERE id = ?
+        """, (channel_id,))
+        row = cursor.fetchone()
+
+        if not row:
+            raise HTTPException(status_code=404, detail="채널을 찾을 수 없습니다")
+
+        youtube_channel_id = row[0]
+
+        try:
+            # YouTube API로 최신 정보 가져오기
+            channel_info = youtube_api.get_channel_info(youtube_channel_id)
+            if not channel_info:
+                raise HTTPException(status_code=404, detail="채널 정보를 가져올 수 없습니다")
+
+            # DB 업데이트
+            now = datetime.now().isoformat()
+            cursor.execute("""
+                UPDATE channels
+                SET title = ?,
+                    subscriber_count = ?,
+                    country = ?,
+                    updated_at = ?
+                WHERE id = ?
+            """, (
+                channel_info["title"],
+                channel_info["subscriber_count"],
+                channel_info.get("country"),
+                now,
+                channel_id
+            ))
+            conn.commit()
+
+            return {
+                "success": True,
+                "title": channel_info["title"],
+                "subscriber_count": channel_info["subscriber_count"],
+                "country": channel_info.get("country")
+            }
+
+        except QuotaExceededException as e:
+            mark_api_key_quota_exceeded(api_key)
+            raise HTTPException(status_code=429, detail=f"API 쿼터가 초과되었습니다: {str(e)}")
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"채널 정보 업데이트 실패: {str(e)}")
+
+
+@router.post("/upload_md")
+async def upload_md_file(
+    file: UploadFile = File(...),
+    category_id: int = Form(...),
+    api_key: Optional[str] = Form(None)
+):
+    """
+    Markdown 파일에서 YouTube URL 추출하여 채널 등록
+    """
+    # 파일 내용 읽기
+    content = await file.read()
+    text = content.decode('utf-8')
+
+    # YouTube URL 패턴 매칭
+    patterns = [
+        r'https?://(?:www\.)?youtube\.com/channel/([a-zA-Z0-9_-]+)',
+        r'https?://(?:www\.)?youtube\.com/@([a-zA-Z0-9_-]+)',
+        r'https?://(?:www\.)?youtube\.com/c/([a-zA-Z0-9_-]+)',
+        r'https?://(?:www\.)?youtube\.com/user/([a-zA-Z0-9_-]+)',
+    ]
+
+    urls = set()
+    for pattern in patterns:
+        matches = re.finditer(pattern, text)
+        for match in matches:
+            urls.add(match.group(0))
+
+    if not urls:
+        raise HTTPException(status_code=400, detail="파일에서 YouTube URL을 찾을 수 없습니다")
+
+    # API 키 가져오기
+    api_key = get_available_api_key(api_key)
+    youtube_api = YouTubeAPI(api_key)
+
+    results = []
+    errors = []
+
+    for url in urls:
+        try:
+            # URL을 channelId로 정규화
+            channel_id = youtube_api.normalize_channel_input(url)
+            if not channel_id:
+                errors.append({
+                    "input": url,
+                    "error": "채널 ID를 찾을 수 없습니다"
+                })
+                continue
+
+            # 채널 정보 가져오기
+            channel_info = youtube_api.get_channel_info(channel_id)
+            if not channel_info:
+                errors.append({
+                    "input": url,
+                    "error": "채널 정보를 가져올 수 없습니다"
+                })
+                continue
+
+            # DB에 upsert
+            with get_db() as conn:
+                cursor = conn.cursor()
+                now = datetime.now().isoformat()
+
+                # 기존 채널 확인
+                cursor.execute("""
+                    SELECT id FROM channels
+                    WHERE category_id = ? AND channel_id = ?
+                """, (category_id, channel_id))
+                existing = cursor.fetchone()
+
+                if existing:
+                    # UPDATE
+                    cursor.execute("""
+                        UPDATE channels
+                        SET title = ?,
+                            subscriber_count = ?,
+                            country = ?,
+                            updated_at = ?
+                        WHERE category_id = ? AND channel_id = ?
+                    """, (
+                        channel_info["title"],
+                        channel_info["subscriber_count"],
+                        channel_info.get("country"),
+                        now,
+                        category_id,
+                        channel_id
+                    ))
+                    action = "updated"
+                else:
+                    # INSERT
+                    cursor.execute("""
+                        INSERT INTO channels (
+                            category_id, channel_input, channel_id, title,
+                            subscriber_count, country, is_active,
+                            created_at, updated_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)
+                    """, (
+                        category_id,
+                        url,
+                        channel_id,
+                        channel_info["title"],
+                        channel_info["subscriber_count"],
+                        channel_info.get("country"),
+                        now,
+                        now
+                    ))
+                    action = "created"
+
+                conn.commit()
+
+                results.append({
+                    "input": url,
+                    "channel_id": channel_id,
+                    "title": channel_info["title"],
+                    "action": action
+                })
+
+        except QuotaExceededException as e:
+            mark_api_key_quota_exceeded(api_key)
+            errors.append({
+                "input": url,
+                "error": f"API 쿼터가 초과되었습니다: {str(e)}"
+            })
+            break
+        except Exception as e:
+            errors.append({
+                "input": url,
+                "error": str(e)
+            })
+
+    return {
+        "success": len(results),
+        "failed": len(errors),
+        "urls_found": len(urls),
+        "results": results,
+        "errors": errors
+    }
