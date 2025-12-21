@@ -771,8 +771,14 @@ document.addEventListener('DOMContentLoaded', function() {
 
             const preview = document.getElementById('filePreview');
             const urlList = document.getElementById('urlList');
+            const urlCountHeader = document.getElementById('urlCountHeader');
 
             if (urls.length > 0) {
+                // URL 개수 헤더 업데이트
+                urlCountHeader.textContent = `감지된 YouTube URL: ${urls.length}개`;
+                urlCountHeader.style.color = '#4caf50';
+
+                // URL 목록 표시
                 urlList.innerHTML = urls.map(url =>
                     `<div style="font-size: 11px; color: #2196f3; padding: 4px 0; border-bottom: 1px solid #1a1a1a;">${escapeHtml(url)}</div>`
                 ).join('');
