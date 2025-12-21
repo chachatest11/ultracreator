@@ -41,15 +41,35 @@ def get_categories():
         rows = cursor.fetchall()
 
         categories = []
+        needs_order_init = False
+
         for row in rows:
             category_dict = {
                 "id": row[0],
                 "name": row[1],
                 "created_at": row[2],
-                "display_order": row[3],
+                "display_order": row[3] if row[3] is not None else 0,
                 "channel_count": row[4]
             }
             categories.append(category_dict)
+
+            # display_order가 모두 0인지 확인
+            if row[3] is None or row[3] == 0:
+                needs_order_init = True
+
+        # display_order가 초기화되지 않았으면 자동으로 설정
+        if needs_order_init and len(categories) > 0:
+            # 모든 display_order가 0이면 ID 순서대로 display_order 부여
+            all_zero = all(c["display_order"] == 0 for c in categories)
+            if all_zero:
+                for idx, category in enumerate(categories):
+                    cursor.execute("""
+                        UPDATE categories
+                        SET display_order = ?
+                        WHERE id = ?
+                    """, (idx, category["id"]))
+                    category["display_order"] = idx
+                conn.commit()
 
         return {
             "categories": categories,
@@ -66,10 +86,15 @@ def create_category(data: CategoryCreate):
     with get_db() as conn:
         cursor = conn.cursor()
         try:
+            # 현재 최대 display_order 조회
+            cursor.execute("SELECT MAX(display_order) FROM categories")
+            max_order = cursor.fetchone()[0]
+            next_order = (max_order + 1) if max_order is not None else 0
+
             cursor.execute("""
-                INSERT INTO categories (name, created_at)
-                VALUES (?, ?)
-            """, (data.name.strip(), datetime.now().isoformat()))
+                INSERT INTO categories (name, display_order, created_at)
+                VALUES (?, ?, ?)
+            """, (data.name.strip(), next_order, datetime.now().isoformat()))
             conn.commit()
             category_id = cursor.lastrowid
 

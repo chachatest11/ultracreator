@@ -967,27 +967,82 @@ function createVideoCard(video) {
     // 날짜 포맷팅
     const publishedDate = formatDate(video.published_at);
 
-    card.innerHTML = `
-        <div class="video-thumbnail" onclick="openYouTube('${video.video_id}')">
-            <img src="${video.thumbnail_url}" alt="${video.title}" loading="lazy">
-        </div>
-        <div class="video-info">
-            <div class="video-title">${escapeHtml(video.title)}</div>
-            <div class="video-meta">
-                <span>조회수 ${viewCount}</span>
-                <span>${escapeHtml(video.channel_title || '')}</span>
-                <span>${publishedDate}</span>
-            </div>
-        </div>
-        <div class="video-toggle">
-            <div class="toggle-checkbox">
-                <input type="checkbox" id="toggle-${video.video_id}"
-                       ${selectedVideoIds.has(video.video_id) ? 'checked' : ''}
-                       onchange="toggleVideoSelection('${video.video_id}')">
-                <label for="toggle-${video.video_id}">영상추출</label>
-            </div>
+    // 썸네일 div 생성
+    const thumbnailDiv = document.createElement('div');
+    thumbnailDiv.className = 'video-thumbnail';
+    thumbnailDiv.style.position = 'relative';
+    thumbnailDiv.style.cursor = 'pointer';
+
+    const thumbnailImg = document.createElement('img');
+    thumbnailImg.src = video.thumbnail_url;
+    thumbnailImg.alt = video.title;
+    thumbnailImg.loading = 'lazy';
+
+    // 재생 버튼 오버레이
+    const playButton = document.createElement('div');
+    playButton.style.cssText = `
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 48px;
+        height: 48px;
+        background: rgba(0, 0, 0, 0.7);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        pointer-events: none;
+    `;
+    playButton.innerHTML = `
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="white">
+            <path d="M8 5v14l11-7z"/>
+        </svg>
+    `;
+
+    thumbnailDiv.appendChild(thumbnailImg);
+    thumbnailDiv.appendChild(playButton);
+    thumbnailDiv.onclick = () => openVideoPlayer(video.video_id, video.title);
+
+    // 비디오 정보
+    const videoInfo = document.createElement('div');
+    videoInfo.className = 'video-info';
+    videoInfo.innerHTML = `
+        <div class="video-title">${escapeHtml(video.title)}</div>
+        <div class="video-meta">
+            <span>조회수 ${viewCount}</span>
+            <span>${escapeHtml(video.channel_title || '')}</span>
+            <span>${publishedDate}</span>
         </div>
     `;
+
+    // YouTube 링크 버튼 추가
+    const videoActions = document.createElement('div');
+    videoActions.style.cssText = 'padding: 8px; display: flex; gap: 8px; align-items: center;';
+
+    const youtubeLink = document.createElement('a');
+    youtubeLink.href = `https://www.youtube.com/watch?v=${video.video_id}`;
+    youtubeLink.target = '_blank';
+    youtubeLink.style.cssText = 'color: #2196f3; font-size: 12px; text-decoration: none;';
+    youtubeLink.textContent = 'YouTube에서 열기 ↗';
+    videoActions.appendChild(youtubeLink);
+
+    // 체크박스
+    const videoToggle = document.createElement('div');
+    videoToggle.className = 'video-toggle';
+    videoToggle.innerHTML = `
+        <div class="toggle-checkbox">
+            <input type="checkbox" id="toggle-${video.video_id}"
+                   ${selectedVideoIds.has(video.video_id) ? 'checked' : ''}
+                   onchange="toggleVideoSelection('${video.video_id}')">
+            <label for="toggle-${video.video_id}">영상추출</label>
+        </div>
+    `;
+
+    card.appendChild(thumbnailDiv);
+    card.appendChild(videoInfo);
+    card.appendChild(videoActions);
+    card.appendChild(videoToggle);
 
     return card;
 }
@@ -1315,6 +1370,27 @@ function openYouTube(videoId) {
     window.open(`https://www.youtube.com/watch?v=${videoId}`, '_blank');
 }
 
+function openVideoPlayer(videoId, videoTitle) {
+    const modal = document.getElementById('videoPlayerModal');
+    const iframe = document.getElementById('videoPlayerIframe');
+    const title = document.getElementById('videoPlayerTitle');
+
+    // YouTube Shorts는 일반 embed URL 사용
+    iframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1`;
+    title.textContent = videoTitle || '영상 재생';
+
+    modal.classList.add('active');
+}
+
+function closeVideoPlayer() {
+    const modal = document.getElementById('videoPlayerModal');
+    const iframe = document.getElementById('videoPlayerIframe');
+
+    // iframe 소스를 비워서 재생 중지
+    iframe.src = '';
+    modal.classList.remove('active');
+}
+
 function formatViewCount(count) {
     if (count >= 100000000) {
         return `${(count / 100000000).toFixed(1)}억`;
@@ -1373,6 +1449,7 @@ window.addEventListener('click', function(event) {
     const categoryModal = document.getElementById('categoryModal');
     const apiKeyModal = document.getElementById('apiKeyModal');
     const downloadModal = document.getElementById('downloadModal');
+    const videoPlayerModal = document.getElementById('videoPlayerModal');
 
     if (event.target === categoryModal) {
         closeCategoryModal();
@@ -1380,6 +1457,10 @@ window.addEventListener('click', function(event) {
 
     if (event.target === apiKeyModal) {
         closeApiKeyModal();
+    }
+
+    if (event.target === videoPlayerModal) {
+        closeVideoPlayer();
     }
 
     // 다운로드 모달은 외부 클릭으로 안 닫히게
