@@ -632,50 +632,71 @@ async function loadBulkMoveCategoryOptions() {
         const data = await response.json();
 
         const select = document.getElementById('bulkMoveCategorySelect');
-        if (!select) return;
+        if (!select) {
+            console.error('bulkMoveCategorySelect element not found');
+            return;
+        }
 
         // 기존 옵션 제거 (첫 번째 옵션은 유지)
         while (select.options.length > 1) {
             select.remove(1);
         }
 
-        // 카테고리 옵션 추가
+        // 카테고리 옵션 추가 (전체 탭(0)이 아닌 경우 현재 카테고리 제외)
         data.categories.forEach(category => {
-            const option = document.createElement('option');
-            option.value = category.id;
-            option.textContent = category.name;
-            select.appendChild(option);
+            // 전체 탭(0)이거나 현재 카테고리가 아닌 경우만 추가
+            if (currentCategoryId === 0 || category.id !== currentCategoryId) {
+                const option = document.createElement('option');
+                option.value = category.id;
+                option.textContent = category.name;
+                select.appendChild(option);
+            }
         });
+
+        console.log(`Bulk move options loaded: ${select.options.length - 1} categories`);
     } catch (error) {
         console.error('카테고리 옵션 로드 실패:', error);
     }
 }
 
 async function bulkMoveChannels() {
+    console.log('bulkMoveChannels called, selected:', selectedChannelIds.size);
+
     if (selectedChannelIds.size === 0) {
         alert('이동할 채널을 선택하세요.');
         return;
     }
 
     const categorySelect = document.getElementById('bulkMoveCategorySelect');
-    const newCategoryId = parseInt(categorySelect.value);
+    if (!categorySelect) {
+        console.error('bulkMoveCategorySelect not found');
+        alert('카테고리 선택 상자를 찾을 수 없습니다.');
+        return;
+    }
 
-    if (!newCategoryId) {
+    const newCategoryId = parseInt(categorySelect.value);
+    console.log('Selected category ID:', newCategoryId);
+
+    if (!newCategoryId || isNaN(newCategoryId)) {
         alert('이동할 카테고리를 선택하세요.');
         return;
     }
+
+    const channelIdsArray = Array.from(selectedChannelIds);
+    console.log('Moving channels:', channelIdsArray, 'to category:', newCategoryId);
 
     try {
         const response = await fetch('/api/channels/bulk/move_category', {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                channel_ids: Array.from(selectedChannelIds),
+                channel_ids: channelIdsArray,
                 new_category_id: newCategoryId
             })
         });
 
         const result = await response.json();
+        console.log('Bulk move response:', response.status, result);
 
         if (response.ok) {
             alert(`${result.moved_count}개의 채널이 이동되었습니다.`);
@@ -684,7 +705,8 @@ async function bulkMoveChannels() {
             await refreshTabCounts();
         } else {
             const errorMsg = result.detail || result.message || JSON.stringify(result) || '채널 이동 실패';
-            alert(errorMsg);
+            console.error('Bulk move failed:', errorMsg);
+            alert('채널 이동 실패: ' + errorMsg);
         }
     } catch (error) {
         console.error('채널 일괄 이동 실패:', error);
