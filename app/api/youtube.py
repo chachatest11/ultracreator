@@ -268,10 +268,12 @@ class YouTubeAPI:
         if not uploads_playlist_id:
             return []
 
-        # 최근 영상 ID 목록 가져오기 (쇼츠 필터링을 위해 더 많이 가져옴)
+        # 최근 영상 ID 목록 가져오기 (쇼츠 필터링을 위해 충분히 많이 가져옴)
+        # 일반 영상과 쇼츠가 섞여있으므로 5배로 가져와서 안전하게 확보
+        fetch_count = min(max_results * 5, 200)  # 최대 200개까지만
         video_ids = self.get_videos_from_playlist(
             uploads_playlist_id,
-            max_results=max_results * 2  # 쇼츠가 아닌 것도 있으므로 2배로
+            max_results=fetch_count
         )
 
         if not video_ids:

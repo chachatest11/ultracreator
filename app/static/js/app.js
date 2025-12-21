@@ -64,16 +64,42 @@ async function loadCategories() {
         data.categories.forEach((category, index) => {
             const item = document.createElement('div');
             item.className = 'category-item';
-            item.draggable = true;
             item.dataset.categoryId = category.id;
             item.dataset.displayOrder = category.display_order;
-            item.dataset.categoryName = category.name;  // 이름 저장
 
-            // 드래그 핸들
-            const dragHandle = document.createElement('div');
-            dragHandle.className = 'category-drag-handle';
-            dragHandle.title = '드래그하여 순서 변경';
-            dragHandle.textContent = '⋮⋮';
+            // 순서 변경 버튼들
+            const orderButtons = document.createElement('div');
+            orderButtons.className = 'category-order-buttons';
+            orderButtons.style.cssText = 'display: flex; flex-direction: column; gap: 2px; margin-right: 8px;';
+
+            const upBtn = document.createElement('button');
+            upBtn.className = 'btn-order-up';
+            upBtn.textContent = '▲';
+            upBtn.title = '위로 이동';
+            upBtn.style.cssText = 'padding: 2px 8px; font-size: 10px; background: #333; border: 1px solid #555; color: #fff; cursor: pointer; border-radius: 3px;';
+            upBtn.disabled = index === 0;
+            if (index > 0) {
+                upBtn.onclick = () => moveCategoryUp(category.id, data.categories);
+            } else {
+                upBtn.style.opacity = '0.3';
+                upBtn.style.cursor = 'not-allowed';
+            }
+
+            const downBtn = document.createElement('button');
+            downBtn.className = 'btn-order-down';
+            downBtn.textContent = '▼';
+            downBtn.title = '아래로 이동';
+            downBtn.style.cssText = 'padding: 2px 8px; font-size: 10px; background: #333; border: 1px solid #555; color: #fff; cursor: pointer; border-radius: 3px;';
+            downBtn.disabled = index === data.categories.length - 1;
+            if (index < data.categories.length - 1) {
+                downBtn.onclick = () => moveCategoryDown(category.id, data.categories);
+            } else {
+                downBtn.style.opacity = '0.3';
+                downBtn.style.cursor = 'not-allowed';
+            }
+
+            orderButtons.appendChild(upBtn);
+            orderButtons.appendChild(downBtn);
 
             // 카테고리 이름
             const nameSpan = document.createElement('span');
@@ -99,15 +125,9 @@ async function loadCategories() {
                 actionsDiv.appendChild(deleteBtn);
             }
 
-            item.appendChild(dragHandle);
+            item.appendChild(orderButtons);
             item.appendChild(nameSpan);
             item.appendChild(actionsDiv);
-
-            // 드래그 이벤트 핸들러
-            item.addEventListener('dragstart', handleDragStart);
-            item.addEventListener('dragover', handleDragOver);
-            item.addEventListener('drop', handleDrop);
-            item.addEventListener('dragend', handleDragEnd);
 
             categoryList.appendChild(item);
         });
@@ -213,90 +233,50 @@ async function deleteCategory(id) {
     }
 }
 
-// 드래그 앤 드롭 관련 변수
-let draggedCategoryItem = null;
+// 카테고리 순서 변경 함수들
+async function moveCategoryUp(categoryId, categories) {
+    const currentIndex = categories.findIndex(c => c.id === categoryId);
+    if (currentIndex <= 0) return;
 
-function handleDragStart(e) {
-    draggedCategoryItem = this;
-    this.classList.add('dragging');
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/html', this.innerHTML);
-    console.log('드래그 시작:', this.dataset.categoryName);
+    const currentCategory = categories[currentIndex];
+    const previousCategory = categories[currentIndex - 1];
+
+    await swapCategoryOrder(currentCategory.id, previousCategory.id,
+                           currentCategory.display_order, previousCategory.display_order);
 }
 
-function handleDragOver(e) {
-    if (e.preventDefault) {
-        e.preventDefault();
-    }
-    e.dataTransfer.dropEffect = 'move';
+async function moveCategoryDown(categoryId, categories) {
+    const currentIndex = categories.findIndex(c => c.id === categoryId);
+    if (currentIndex < 0 || currentIndex >= categories.length - 1) return;
 
-    if (this !== draggedCategoryItem) {
-        this.classList.add('drag-over');
-    }
-    return false;
+    const currentCategory = categories[currentIndex];
+    const nextCategory = categories[currentIndex + 1];
+
+    await swapCategoryOrder(currentCategory.id, nextCategory.id,
+                           currentCategory.display_order, nextCategory.display_order);
 }
 
-function handleDrop(e) {
-    if (e.stopPropagation) {
-        e.stopPropagation();
-    }
-
-    if (draggedCategoryItem !== this) {
-        // 순서 교환
-        const draggedId = parseInt(draggedCategoryItem.dataset.categoryId);
-        const targetId = parseInt(this.dataset.categoryId);
-        const draggedOrder = parseInt(draggedCategoryItem.dataset.displayOrder);
-        const targetOrder = parseInt(this.dataset.displayOrder);
-
-        console.log(`드롭: ${draggedCategoryItem.dataset.categoryName} (order ${draggedOrder}) → ${this.dataset.categoryName} (order ${targetOrder})`);
-
-        // 서버에 순서 업데이트 요청
-        swapCategoryOrder(draggedId, targetId, draggedOrder, targetOrder);
-    }
-
-    this.classList.remove('drag-over');
-    return false;
-}
-
-function handleDragEnd(e) {
-    this.classList.remove('dragging');
-
-    // 모든 drag-over 클래스 제거
-    document.querySelectorAll('.category-item').forEach(item => {
-        item.classList.remove('drag-over');
-    });
-    console.log('드래그 종료');
-}
-
-async function swapCategoryOrder(draggedId, targetId, draggedOrder, targetOrder) {
+async function swapCategoryOrder(id1, id2, order1, order2) {
     try {
-        console.log(`순서 교환 요청: ID ${draggedId} order ${draggedOrder}→${targetOrder}, ID ${targetId} order ${targetOrder}→${draggedOrder}`);
-
         // 두 카테고리의 display_order 교환
-        const response1 = await fetch(`/api/categories/${draggedId}`, {
+        const response1 = await fetch(`/api/categories/${id1}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ display_order: targetOrder })
+            body: JSON.stringify({ display_order: order2 })
         });
 
-        const response2 = await fetch(`/api/categories/${targetId}`, {
+        const response2 = await fetch(`/api/categories/${id2}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ display_order: draggedOrder })
+            body: JSON.stringify({ display_order: order1 })
         });
-
-        console.log(`응답 상태: response1=${response1.status}, response2=${response2.status}`);
 
         if (response1.ok && response2.ok) {
-            console.log('순서 변경 성공, 카테고리 목록 새로고침 중...');
             // 카테고리 목록 다시 로드
             await loadCategories();
             // 탭도 다시 로드
             await reloadCategoryTabs();
         } else {
-            const error1 = response1.ok ? null : await response1.json();
-            const error2 = response2.ok ? null : await response2.json();
-            console.error('순서 변경 실패:', error1, error2);
             alert('순서 변경에 실패했습니다.');
         }
     } catch (error) {
