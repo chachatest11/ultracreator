@@ -1,4 +1,21 @@
 // ========================================
+// 채널 목록 토글
+// ========================================
+
+function toggleChannelList() {
+    const content = document.getElementById('channelsContent');
+    const toggleBtn = document.getElementById('channelToggleBtn');
+
+    if (content.classList.contains('collapsed')) {
+        content.classList.remove('collapsed');
+        toggleBtn.textContent = '▼';
+    } else {
+        content.classList.add('collapsed');
+        toggleBtn.textContent = '▶';
+    }
+}
+
+// ========================================
 // 카테고리 관리
 // ========================================
 
@@ -22,12 +39,9 @@ function selectCategory(categoryId) {
     // 채널 목록 다시 로드
     loadChannels();
 
-    // 결과 초기화
-    currentVideos = [];
-    selectedVideoIds.clear();
+    // 선택 상태만 초기화 (검색 결과는 유지)
     selectedChannelIds.clear();
-    renderVideoGrid();
-    updateResultInfo();
+    // 검색 결과가 있으면 유지, 없으면 그대로
 }
 
 function openCategoryModal() {
@@ -176,9 +190,10 @@ async function moveCategoryOrder(categoryId, direction) {
         const result = await response.json();
 
         if (response.ok) {
+            // 카테고리 목록 다시 로드 (모달 내)
             await loadCategories();
-            // 탭도 다시 로드
-            location.reload();
+            // 탭도 다시 로드 (페이지 리로드 없이)
+            await reloadCategoryTabs();
         } else {
             if (!result.message.includes('최상단') && !result.message.includes('최하단')) {
                 alert(result.detail || result.message || '순서 변경 실패');
@@ -187,6 +202,45 @@ async function moveCategoryOrder(categoryId, direction) {
     } catch (error) {
         console.error('카테고리 순서 변경 실패:', error);
         alert('순서 변경에 실패했습니다.');
+    }
+}
+
+async function reloadCategoryTabs() {
+    try {
+        const response = await fetch('/api/categories/');
+        const data = await response.json();
+
+        // 탭 컨테이너 찾기
+        const tabsContainer = document.querySelector('.category-tabs');
+        if (!tabsContainer) return;
+
+        // 전체 탭 제외하고 기존 탭 제거
+        const allTab = tabsContainer.querySelector('[data-category-id="0"]');
+        tabsContainer.innerHTML = '';
+
+        // 전체 탭 다시 추가
+        if (allTab) {
+            tabsContainer.appendChild(allTab);
+        }
+
+        // 카테고리 탭 다시 생성
+        data.categories.forEach(category => {
+            const button = document.createElement('button');
+            button.className = 'category-tab';
+            if (category.id === currentCategoryId) {
+                button.classList.add('active');
+            }
+            button.setAttribute('data-category-id', category.id);
+            button.setAttribute('data-channel-count', category.channel_count);
+            button.onclick = () => selectCategory(category.id);
+            button.innerHTML = `${category.name} (<span class="tab-count">${category.channel_count}</span>)`;
+            tabsContainer.appendChild(button);
+        });
+
+        // 전체 탭 개수 업데이트
+        updateTabCounts(data.categories, data.total_count);
+    } catch (error) {
+        console.error('탭 리로드 실패:', error);
     }
 }
 
@@ -504,11 +558,12 @@ async function bulkMoveChannels() {
             await loadChannels();
             await refreshTabCounts();
         } else {
-            alert(result.detail || '채널 이동 실패');
+            const errorMsg = result.detail || result.message || JSON.stringify(result) || '채널 이동 실패';
+            alert(errorMsg);
         }
     } catch (error) {
         console.error('채널 일괄 이동 실패:', error);
-        alert('채널 이동에 실패했습니다.');
+        alert('채널 이동에 실패했습니다: ' + error.message);
     }
 }
 

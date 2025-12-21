@@ -158,7 +158,7 @@ def search_videos(data: SearchRequest):
         }
         order_by = sort_options.get(data.sort, "v.published_at DESC")
 
-        # 카테고리의 채널들로부터 영상 조회
+        # 카테고리의 채널들로부터 영상 조회 (이미 채널별 할당량 제한됨)
         cursor.execute(f"""
             SELECT v.id, v.channel_id, v.video_id, v.title, v.published_at,
                    v.view_count, v.like_count, v.comment_count, v.thumbnail_url, v.duration_seconds,
@@ -170,8 +170,7 @@ def search_videos(data: SearchRequest):
               AND v.is_short = 1
               AND v.view_count >= ?
             ORDER BY {order_by}
-            LIMIT ?
-        """, (data.category_id, min_views, data.max_videos))
+        """, (data.category_id, min_views))
 
         rows = cursor.fetchall()
         videos = [Video.from_row(row).to_dict() for row in rows]

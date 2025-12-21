@@ -127,9 +127,44 @@ body {
     margin-bottom: 20px;
 }
 
+.channels-header-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.btn-collapse {
+    background: #1a1a1a;
+    border: 1px solid #333;
+    color: #e0e0e0;
+    padding: 6px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.3s ease;
+}
+
+.btn-collapse:hover {
+    border-color: #2196f3;
+    background: #0a0a0a;
+}
+
 .channels-header h3 {
     font-size: 18px;
     color: #e0e0e0;
+    margin: 0;
+}
+
+.channels-content {
+    max-height: 1000px;
+    overflow: hidden;
+    transition: max-height 0.3s ease, opacity 0.3s ease;
+    opacity: 1;
+}
+
+.channels-content.collapsed {
+    max-height: 0;
+    opacity: 0;
 }
 
 .channels-list {
