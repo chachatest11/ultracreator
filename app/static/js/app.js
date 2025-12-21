@@ -67,17 +67,41 @@ async function loadCategories() {
             item.draggable = true;
             item.dataset.categoryId = category.id;
             item.dataset.displayOrder = category.display_order;
+            item.dataset.categoryName = category.name;  // 이름 저장
 
-            item.innerHTML = `
-                <div class="category-drag-handle" title="드래그하여 순서 변경">⋮⋮</div>
-                <span class="category-item-name">${category.name} (${category.channel_count})</span>
-                <div class="category-item-actions">
-                    ${category.id !== 1 ? `
-                        <button class="btn-edit" onclick="editCategory(${category.id}, '${escapeHtml(category.name)}')">수정</button>
-                        <button class="btn-delete" onclick="deleteCategory(${category.id})">삭제</button>
-                    ` : ''}
-                </div>
-            `;
+            // 드래그 핸들
+            const dragHandle = document.createElement('div');
+            dragHandle.className = 'category-drag-handle';
+            dragHandle.title = '드래그하여 순서 변경';
+            dragHandle.textContent = '⋮⋮';
+
+            // 카테고리 이름
+            const nameSpan = document.createElement('span');
+            nameSpan.className = 'category-item-name';
+            nameSpan.textContent = `${category.name} (${category.channel_count})`;
+
+            // 액션 버튼
+            const actionsDiv = document.createElement('div');
+            actionsDiv.className = 'category-item-actions';
+
+            if (category.id !== 1) {
+                const editBtn = document.createElement('button');
+                editBtn.className = 'btn-edit';
+                editBtn.textContent = '수정';
+                editBtn.onclick = () => editCategory(category.id, category.name);
+
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'btn-delete';
+                deleteBtn.textContent = '삭제';
+                deleteBtn.onclick = () => deleteCategory(category.id);
+
+                actionsDiv.appendChild(editBtn);
+                actionsDiv.appendChild(deleteBtn);
+            }
+
+            item.appendChild(dragHandle);
+            item.appendChild(nameSpan);
+            item.appendChild(actionsDiv);
 
             // 드래그 이벤트 핸들러
             item.addEventListener('dragstart', handleDragStart);
@@ -197,6 +221,7 @@ function handleDragStart(e) {
     this.classList.add('dragging');
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/html', this.innerHTML);
+    console.log('드래그 시작:', this.dataset.categoryName);
 }
 
 function handleDragOver(e) {
@@ -223,6 +248,8 @@ function handleDrop(e) {
         const draggedOrder = parseInt(draggedCategoryItem.dataset.displayOrder);
         const targetOrder = parseInt(this.dataset.displayOrder);
 
+        console.log(`드롭: ${draggedCategoryItem.dataset.categoryName} (order ${draggedOrder}) → ${this.dataset.categoryName} (order ${targetOrder})`);
+
         // 서버에 순서 업데이트 요청
         swapCategoryOrder(draggedId, targetId, draggedOrder, targetOrder);
     }
@@ -238,10 +265,13 @@ function handleDragEnd(e) {
     document.querySelectorAll('.category-item').forEach(item => {
         item.classList.remove('drag-over');
     });
+    console.log('드래그 종료');
 }
 
 async function swapCategoryOrder(draggedId, targetId, draggedOrder, targetOrder) {
     try {
+        console.log(`순서 교환 요청: ID ${draggedId} order ${draggedOrder}→${targetOrder}, ID ${targetId} order ${targetOrder}→${draggedOrder}`);
+
         // 두 카테고리의 display_order 교환
         const response1 = await fetch(`/api/categories/${draggedId}`, {
             method: 'PATCH',
@@ -255,12 +285,18 @@ async function swapCategoryOrder(draggedId, targetId, draggedOrder, targetOrder)
             body: JSON.stringify({ display_order: draggedOrder })
         });
 
+        console.log(`응답 상태: response1=${response1.status}, response2=${response2.status}`);
+
         if (response1.ok && response2.ok) {
+            console.log('순서 변경 성공, 카테고리 목록 새로고침 중...');
             // 카테고리 목록 다시 로드
             await loadCategories();
             // 탭도 다시 로드
             await reloadCategoryTabs();
         } else {
+            const error1 = response1.ok ? null : await response1.json();
+            const error2 = response2.ok ? null : await response2.json();
+            console.error('순서 변경 실패:', error1, error2);
             alert('순서 변경에 실패했습니다.');
         }
     } catch (error) {

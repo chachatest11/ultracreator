@@ -52,6 +52,7 @@ def search_videos(data: SearchRequest):
     # 2. 각 채널에서 쇼츠 수집
     all_videos = []
     errors = []
+    fetched_video_ids = []  # 이번 검색에서 가져온 video_id 추적
 
     # 각 채널에서 max_videos 개수만큼 가져오기
     for channel_row in channels:
@@ -72,6 +73,9 @@ def search_videos(data: SearchRequest):
                 now = datetime.now().isoformat()
 
                 for video_data in shorts:
+                    # 이번 검색에서 가져온 video_id 기록
+                    fetched_video_ids.append(video_data["video_id"])
+
                     # 기존 영상 확인
                     cursor.execute("""
                         SELECT id FROM videos WHERE video_id = ?
@@ -136,6 +140,14 @@ def search_videos(data: SearchRequest):
             })
 
     # 3. DB에서 결과 조회 (필터/정렬 적용)
+    # 이번 검색에서 가져온 영상만 반환
+    if not fetched_video_ids:
+        return {
+            "videos": [],
+            "total": 0,
+            "errors": errors if errors else None
+        }
+
     with get_db() as conn:
         cursor = conn.cursor()
 
@@ -155,19 +167,19 @@ def search_videos(data: SearchRequest):
         }
         order_by = sort_options.get(data.sort, "v.published_at DESC")
 
-        # 카테고리의 채널들로부터 영상 조회 (이미 채널별 할당량 제한됨)
+        # 이번 검색에서 가져온 영상만 조회
+        placeholders = ','.join('?' * len(fetched_video_ids))
         cursor.execute(f"""
             SELECT v.id, v.channel_id, v.video_id, v.title, v.published_at,
                    v.view_count, v.like_count, v.comment_count, v.thumbnail_url, v.duration_seconds,
                    v.is_short, v.created_at, v.updated_at, c.title as channel_title
             FROM videos v
             INNER JOIN channels c ON v.channel_id = c.channel_id
-            WHERE c.category_id = ?
-              AND c.is_active = 1
+            WHERE v.video_id IN ({placeholders})
               AND v.is_short = 1
               AND v.view_count >= ?
             ORDER BY {order_by}
-        """, (data.category_id, min_views))
+        """, (*fetched_video_ids, min_views))
 
         rows = cursor.fetchall()
         videos = [Video.from_row(row).to_dict() for row in rows]
