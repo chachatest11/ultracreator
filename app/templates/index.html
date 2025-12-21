@@ -44,7 +44,15 @@
         </div>
 
         <div id="channelsContent" class="channels-content collapsed">
-            <!-- 선택한 채널 일괄 이동 -->
+            <!-- 전체 선택 체크박스 -->
+            <div style="padding: 12px; border-bottom: 1px solid #333;">
+                <label style="display: flex; align-items: center; cursor: pointer; user-select: none;">
+                    <input type="checkbox" id="selectAllChannels" onchange="toggleSelectAll(this.checked)" style="margin-right: 8px;">
+                    <span style="font-size: 14px; color: #999;">전체 선택</span>
+                </label>
+            </div>
+
+            <!-- 선택한 채널 일괄 작업 -->
             <div id="bulkMoveContainer" class="bulk-move-container" style="display: none;">
                 <span class="bulk-move-info">
                     <span id="selectedChannelCount">0</span>개 선택됨
@@ -53,6 +61,7 @@
                     <option value="">이동할 카테고리 선택...</option>
                 </select>
                 <button class="btn-primary btn-small" onclick="bulkMoveChannels()">이동</button>
+                <button class="btn-delete-channel btn-small" onclick="bulkDeleteChannels()" style="background: #f44336;">일괄 삭제</button>
                 <button class="btn-secondary btn-small" onclick="clearChannelSelection()">선택 해제</button>
             </div>
 

@@ -399,6 +399,9 @@ async function loadChannels() {
 
         // 일괄 이동 카테고리 옵션 로드
         await loadBulkMoveCategoryOptions();
+
+        // 전체 선택 체크박스 상태 업데이트
+        updateSelectAllCheckbox();
     } catch (error) {
         console.error('채널 로드 실패:', error);
     }
@@ -565,6 +568,48 @@ function toggleChannelSelection(channelId, isChecked) {
         selectedChannelIds.delete(channelId);
     }
     updateBulkMoveUI();
+    updateSelectAllCheckbox();
+}
+
+function toggleSelectAll(isChecked) {
+    const checkboxes = document.querySelectorAll('.channel-select-checkbox');
+
+    checkboxes.forEach(checkbox => {
+        const channelId = parseInt(checkbox.dataset.channelId);
+        checkbox.checked = isChecked;
+
+        if (isChecked) {
+            selectedChannelIds.add(channelId);
+        } else {
+            selectedChannelIds.delete(channelId);
+        }
+    });
+
+    updateBulkMoveUI();
+}
+
+function updateSelectAllCheckbox() {
+    const selectAllCheckbox = document.getElementById('selectAllChannels');
+    const checkboxes = document.querySelectorAll('.channel-select-checkbox');
+
+    if (checkboxes.length === 0) {
+        selectAllCheckbox.checked = false;
+        selectAllCheckbox.indeterminate = false;
+        return;
+    }
+
+    const checkedCount = selectedChannelIds.size;
+
+    if (checkedCount === 0) {
+        selectAllCheckbox.checked = false;
+        selectAllCheckbox.indeterminate = false;
+    } else if (checkedCount === checkboxes.length) {
+        selectAllCheckbox.checked = true;
+        selectAllCheckbox.indeterminate = false;
+    } else {
+        selectAllCheckbox.checked = false;
+        selectAllCheckbox.indeterminate = true;
+    }
 }
 
 function updateBulkMoveUI() {
@@ -656,6 +701,44 @@ function clearChannelSelection() {
     });
 
     updateBulkMoveUI();
+    updateSelectAllCheckbox();
+}
+
+async function bulkDeleteChannels() {
+    if (selectedChannelIds.size === 0) {
+        alert('삭제할 채널을 선택하세요.');
+        return;
+    }
+
+    const confirmMessage = `선택한 ${selectedChannelIds.size}개의 채널을 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.`;
+    if (!confirm(confirmMessage)) {
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/channels/bulk/delete', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                channel_ids: Array.from(selectedChannelIds)
+            })
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+            alert(`${result.deleted_count}개의 채널이 삭제되었습니다.`);
+            clearChannelSelection();
+            await loadChannels();
+            await refreshTabCounts();
+        } else {
+            const errorMsg = result.detail || result.message || JSON.stringify(result) || '채널 삭제 실패';
+            alert(errorMsg);
+        }
+    } catch (error) {
+        console.error('채널 일괄 삭제 실패:', error);
+        alert('채널 삭제에 실패했습니다: ' + error.message);
+    }
 }
 
 async function deleteChannel(channelId) {

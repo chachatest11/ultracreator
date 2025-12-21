@@ -347,6 +347,31 @@ def bulk_move_channels(data: BulkMoveChannelsRequest):
         }
 
 
+class BulkDeleteChannelsRequest(BaseModel):
+    channel_ids: List[int]
+
+
+@router.delete("/bulk/delete")
+def bulk_delete_channels(data: BulkDeleteChannelsRequest):
+    """여러 채널을 한번에 삭제"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        deleted_count = 0
+        for channel_id in data.channel_ids:
+            cursor.execute("DELETE FROM channels WHERE id = ?", (channel_id,))
+            if cursor.rowcount > 0:
+                deleted_count += 1
+
+        conn.commit()
+
+        return {
+            "success": True,
+            "deleted_count": deleted_count,
+            "total_requested": len(data.channel_ids)
+        }
+
+
 class RefreshChannelRequest(BaseModel):
     api_key: Optional[str] = None
 
