@@ -156,15 +156,37 @@ body {
 }
 
 .channels-content {
-    max-height: 1000px;
-    overflow: hidden;
+    max-height: 600px;
+    overflow-y: auto;
+    overflow-x: hidden;
     transition: max-height 0.3s ease, opacity 0.3s ease;
     opacity: 1;
+    padding: 0 12px 12px 12px;
+}
+
+/* 스크롤바 스타일 */
+.channels-content::-webkit-scrollbar {
+    width: 8px;
+}
+
+.channels-content::-webkit-scrollbar-track {
+    background: #1a1a1a;
+    border-radius: 4px;
+}
+
+.channels-content::-webkit-scrollbar-thumb {
+    background: #555;
+    border-radius: 4px;
+}
+
+.channels-content::-webkit-scrollbar-thumb:hover {
+    background: #777;
 }
 
 .channels-content.collapsed {
     max-height: 0;
     opacity: 0;
+    padding: 0;
 }
 
 .channels-list {
