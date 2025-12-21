@@ -279,6 +279,11 @@ class MoveChannelRequest(BaseModel):
     new_category_id: int
 
 
+class BulkMoveChannelsRequest(BaseModel):
+    channel_ids: List[int]
+    new_category_id: int
+
+
 @router.put("/{channel_id}/move_category")
 def move_channel_category(channel_id: int, data: MoveChannelRequest):
     """채널을 다른 카테고리로 이동"""
@@ -306,6 +311,38 @@ def move_channel_category(channel_id: int, data: MoveChannelRequest):
         return {
             "success": True,
             "channel_id": channel_id,
+            "new_category_id": data.new_category_id
+        }
+
+
+@router.put("/bulk/move_category")
+def bulk_move_channels(data: BulkMoveChannelsRequest):
+    """여러 채널을 다른 카테고리로 한번에 이동"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        # 카테고리 존재 확인
+        cursor.execute("SELECT id FROM categories WHERE id = ?", (data.new_category_id,))
+        if not cursor.fetchone():
+            raise HTTPException(status_code=404, detail="카테고리를 찾을 수 없습니다")
+
+        # 각 채널 이동
+        moved_count = 0
+        for channel_id in data.channel_ids:
+            cursor.execute("""
+                UPDATE channels
+                SET category_id = ?, updated_at = ?
+                WHERE id = ?
+            """, (data.new_category_id, datetime.now().isoformat(), channel_id))
+            if cursor.rowcount > 0:
+                moved_count += 1
+
+        conn.commit()
+
+        return {
+            "success": True,
+            "moved_count": moved_count,
+            "total_requested": len(data.channel_ids),
             "new_category_id": data.new_category_id
         }
 

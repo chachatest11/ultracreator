@@ -170,7 +170,8 @@ def search_videos(data: SearchRequest):
               AND v.is_short = 1
               AND v.view_count >= ?
             ORDER BY {order_by}
-        """, (data.category_id, min_views))
+            LIMIT ?
+        """, (data.category_id, min_views, data.max_videos))
 
         rows = cursor.fetchall()
         videos = [Video.from_row(row).to_dict() for row in rows]

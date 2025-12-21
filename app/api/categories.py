@@ -26,13 +26,13 @@ def get_categories():
         cursor.execute("SELECT COUNT(*) FROM channels")
         total_count = cursor.fetchone()[0]
 
-        # 각 카테고리별 채널 개수 포함
+        # 각 카테고리별 채널 개수 포함 (display_order로 정렬)
         cursor.execute("""
-            SELECT c.id, c.name, c.created_at, COUNT(ch.id) as channel_count
+            SELECT c.id, c.name, c.created_at, c.display_order, COUNT(ch.id) as channel_count
             FROM categories c
             LEFT JOIN channels ch ON c.id = ch.category_id
-            GROUP BY c.id, c.name, c.created_at
-            ORDER BY c.id ASC
+            GROUP BY c.id, c.name, c.created_at, c.display_order
+            ORDER BY c.display_order ASC, c.id ASC
         """)
         rows = cursor.fetchall()
 
@@ -42,7 +42,8 @@ def get_categories():
                 "id": row[0],
                 "name": row[1],
                 "created_at": row[2],
-                "channel_count": row[3]
+                "display_order": row[3],
+                "channel_count": row[4]
             }
             categories.append(category_dict)
 
@@ -149,3 +150,71 @@ def delete_category(category_id: int):
         conn.commit()
 
         return {"success": True, "message": "카테고리가 삭제되었습니다"}
+
+
+@router.put("/{category_id}/reorder")
+def reorder_category(category_id: int, direction: str):
+    """카테고리 순서 변경 (direction: 'up' 또는 'down')"""
+    if direction not in ['up', 'down']:
+        raise HTTPException(status_code=400, detail="direction은 'up' 또는 'down'이어야 합니다")
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        # 현재 카테고리 조회
+        cursor.execute("""
+            SELECT id, display_order
+            FROM categories
+            WHERE id = ?
+        """, (category_id,))
+        current = cursor.fetchone()
+
+        if not current:
+            raise HTTPException(status_code=404, detail="카테고리를 찾을 수 없습니다")
+
+        current_id, current_order = current[0], current[1]
+
+        # 교환할 카테고리 찾기
+        if direction == 'up':
+            # 현재보다 order가 작은 것 중 가장 큰 것
+            cursor.execute("""
+                SELECT id, display_order
+                FROM categories
+                WHERE display_order < ?
+                ORDER BY display_order DESC
+                LIMIT 1
+            """, (current_order,))
+        else:  # down
+            # 현재보다 order가 큰 것 중 가장 작은 것
+            cursor.execute("""
+                SELECT id, display_order
+                FROM categories
+                WHERE display_order > ?
+                ORDER BY display_order ASC
+                LIMIT 1
+            """, (current_order,))
+
+        target = cursor.fetchone()
+
+        if not target:
+            # 이미 맨 위/아래에 있음
+            return {"success": True, "message": "이미 최" + ('상단' if direction == 'up' else '하단') + "입니다"}
+
+        target_id, target_order = target[0], target[1]
+
+        # 순서 교환
+        cursor.execute("""
+            UPDATE categories
+            SET display_order = ?
+            WHERE id = ?
+        """, (target_order, current_id))
+
+        cursor.execute("""
+            UPDATE categories
+            SET display_order = ?
+            WHERE id = ?
+        """, (current_order, target_id))
+
+        conn.commit()
+
+        return {"success": True, "message": "순서가 변경되었습니다"}

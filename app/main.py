@@ -46,13 +46,13 @@ async def index(request: Request):
         cursor.execute("SELECT COUNT(*) FROM channels")
         total_count = cursor.fetchone()[0]
 
-        # 각 카테고리별 채널 개수 포함
+        # 각 카테고리별 채널 개수 포함 (display_order로 정렬)
         cursor.execute("""
-            SELECT c.id, c.name, c.created_at, COUNT(ch.id) as channel_count
+            SELECT c.id, c.name, c.created_at, c.display_order, COUNT(ch.id) as channel_count
             FROM categories c
             LEFT JOIN channels ch ON c.id = ch.category_id
-            GROUP BY c.id, c.name, c.created_at
-            ORDER BY c.id ASC
+            GROUP BY c.id, c.name, c.created_at, c.display_order
+            ORDER BY c.display_order ASC, c.id ASC
         """)
         category_rows = cursor.fetchall()
         categories = [
@@ -60,7 +60,8 @@ async def index(request: Request):
                 "id": row[0],
                 "name": row[1],
                 "created_at": row[2],
-                "channel_count": row[3]
+                "display_order": row[3],
+                "channel_count": row[4]
             }
             for row in category_rows
         ]

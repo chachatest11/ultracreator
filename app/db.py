@@ -27,9 +27,16 @@ def init_db():
             CREATE TABLE IF NOT EXISTS categories (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT UNIQUE NOT NULL,
+                display_order INTEGER DEFAULT 0,
                 created_at DATETIME NOT NULL
             )
         """)
+
+        # display_order 컬럼 추가 (기존 DB 마이그레이션)
+        try:
+            cursor.execute("ALTER TABLE categories ADD COLUMN display_order INTEGER DEFAULT 0")
+        except sqlite3.OperationalError:
+            pass  # 컬럼이 이미 존재함
 
         # channels 테이블
         cursor.execute("""

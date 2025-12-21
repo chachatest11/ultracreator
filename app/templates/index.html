@@ -39,6 +39,19 @@
             <h3>등록된 채널</h3>
             <button class="btn-primary" onclick="openAddChannelModal()">+ 채널 추가</button>
         </div>
+
+        <!-- 선택한 채널 일괄 이동 -->
+        <div id="bulkMoveContainer" class="bulk-move-container" style="display: none;">
+            <span class="bulk-move-info">
+                <span id="selectedChannelCount">0</span>개 선택됨
+            </span>
+            <select id="bulkMoveCategorySelect" class="bulk-move-select">
+                <option value="">이동할 카테고리 선택...</option>
+            </select>
+            <button class="btn-primary btn-small" onclick="bulkMoveChannels()">이동</button>
+            <button class="btn-secondary btn-small" onclick="clearChannelSelection()">선택 해제</button>
+        </div>
+
         <div class="channels-list" id="channelsList">
             <!-- 동적으로 채워짐 -->
         </div>
@@ -227,6 +240,7 @@
 let currentCategoryId = 0;  // 0 = 전체 탭
 let currentVideos = [];
 let selectedVideoIds = new Set();
+let selectedChannelIds = new Set();
 let apiKey = '';
 
 // 페이지 로드 시

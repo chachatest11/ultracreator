@@ -25,6 +25,7 @@ function selectCategory(categoryId) {
     // 결과 초기화
     currentVideos = [];
     selectedVideoIds.clear();
+    selectedChannelIds.clear();
     renderVideoGrid();
     updateResultInfo();
 }
@@ -46,10 +47,14 @@ async function loadCategories() {
         const categoryList = document.getElementById('categoryList');
         categoryList.innerHTML = '';
 
-        data.categories.forEach(category => {
+        data.categories.forEach((category, index) => {
             const item = document.createElement('div');
             item.className = 'category-item';
             item.innerHTML = `
+                <div class="category-order-controls">
+                    <button class="btn-order" onclick="moveCategoryOrder(${category.id}, 'up')" ${index === 0 ? 'disabled' : ''} title="위로 이동">▲</button>
+                    <button class="btn-order" onclick="moveCategoryOrder(${category.id}, 'down')" ${index === data.categories.length - 1 ? 'disabled' : ''} title="아래로 이동">▼</button>
+                </div>
                 <span class="category-item-name">${category.name} (${category.channel_count})</span>
                 <div class="category-item-actions">
                     ${category.id !== 1 ? `
@@ -162,6 +167,29 @@ async function deleteCategory(id) {
     }
 }
 
+async function moveCategoryOrder(categoryId, direction) {
+    try {
+        const response = await fetch(`/api/categories/${categoryId}/reorder?direction=${direction}`, {
+            method: 'PUT'
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+            await loadCategories();
+            // 탭도 다시 로드
+            location.reload();
+        } else {
+            if (!result.message.includes('최상단') && !result.message.includes('최하단')) {
+                alert(result.detail || result.message || '순서 변경 실패');
+            }
+        }
+    } catch (error) {
+        console.error('카테고리 순서 변경 실패:', error);
+        alert('순서 변경에 실패했습니다.');
+    }
+}
+
 // ========================================
 // 채널 관리
 // ========================================
@@ -191,6 +219,12 @@ async function loadChannels() {
                 '채널 설명 없음';
 
             card.innerHTML = `
+                <div class="channel-checkbox">
+                    <input type="checkbox"
+                           class="channel-select-checkbox"
+                           data-channel-id="${channel.id}"
+                           onchange="toggleChannelSelection(${channel.id}, this.checked)">
+                </div>
                 <div class="channel-info">
                     <div class="channel-title">
                         <a href="https://www.youtube.com/channel/${channel.channel_id}"
@@ -228,6 +262,9 @@ async function loadChannels() {
 
         // 탭 개수 업데이트
         await refreshTabCounts();
+
+        // 일괄 이동 카테고리 옵션 로드
+        await loadBulkMoveCategoryOptions();
     } catch (error) {
         console.error('채널 로드 실패:', error);
     }
@@ -385,6 +422,105 @@ async function toggleChannelActive(channelId) {
         console.error('채널 상태 변경 실패:', error);
         alert('채널 상태 변경에 실패했습니다.');
     }
+}
+
+function toggleChannelSelection(channelId, isChecked) {
+    if (isChecked) {
+        selectedChannelIds.add(channelId);
+    } else {
+        selectedChannelIds.delete(channelId);
+    }
+    updateBulkMoveUI();
+}
+
+function updateBulkMoveUI() {
+    const bulkMoveContainer = document.getElementById('bulkMoveContainer');
+    const selectedCount = document.getElementById('selectedChannelCount');
+
+    if (bulkMoveContainer && selectedCount) {
+        if (selectedChannelIds.size > 0) {
+            bulkMoveContainer.style.display = 'flex';
+            selectedCount.textContent = selectedChannelIds.size;
+        } else {
+            bulkMoveContainer.style.display = 'none';
+        }
+    }
+}
+
+async function loadBulkMoveCategoryOptions() {
+    try {
+        const response = await fetch('/api/categories/');
+        const data = await response.json();
+
+        const select = document.getElementById('bulkMoveCategorySelect');
+        if (!select) return;
+
+        // 기존 옵션 제거 (첫 번째 옵션은 유지)
+        while (select.options.length > 1) {
+            select.remove(1);
+        }
+
+        // 카테고리 옵션 추가
+        data.categories.forEach(category => {
+            const option = document.createElement('option');
+            option.value = category.id;
+            option.textContent = category.name;
+            select.appendChild(option);
+        });
+    } catch (error) {
+        console.error('카테고리 옵션 로드 실패:', error);
+    }
+}
+
+async function bulkMoveChannels() {
+    if (selectedChannelIds.size === 0) {
+        alert('이동할 채널을 선택하세요.');
+        return;
+    }
+
+    const categorySelect = document.getElementById('bulkMoveCategorySelect');
+    const newCategoryId = parseInt(categorySelect.value);
+
+    if (!newCategoryId) {
+        alert('이동할 카테고리를 선택하세요.');
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/channels/bulk/move_category', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                channel_ids: Array.from(selectedChannelIds),
+                new_category_id: newCategoryId
+            })
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+            alert(`${result.moved_count}개의 채널이 이동되었습니다.`);
+            clearChannelSelection();
+            await loadChannels();
+            await refreshTabCounts();
+        } else {
+            alert(result.detail || '채널 이동 실패');
+        }
+    } catch (error) {
+        console.error('채널 일괄 이동 실패:', error);
+        alert('채널 이동에 실패했습니다.');
+    }
+}
+
+function clearChannelSelection() {
+    selectedChannelIds.clear();
+
+    // 모든 체크박스 해제
+    document.querySelectorAll('.channel-select-checkbox').forEach(checkbox => {
+        checkbox.checked = false;
+    });
+
+    updateBulkMoveUI();
 }
 
 async function deleteChannel(channelId) {
