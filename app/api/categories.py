@@ -16,6 +16,10 @@ class CategoryUpdate(BaseModel):
     name: str
 
 
+class CategoryOrderUpdate(BaseModel):
+    display_order: int
+
+
 @router.get("/")
 def get_categories():
     """모든 카테고리 조회 (채널 개수 포함)"""
@@ -121,6 +125,28 @@ def update_category(category_id: int, data: CategoryUpdate):
             if "UNIQUE constraint failed" in str(e):
                 raise HTTPException(status_code=400, detail="이미 존재하는 카테고리 이름입니다")
             raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.patch("/{category_id}")
+def update_category_order(category_id: int, data: CategoryOrderUpdate):
+    """카테고리 순서 변경 (display_order 업데이트)"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        # 카테고리 존재 확인
+        cursor.execute("SELECT id FROM categories WHERE id = ?", (category_id,))
+        if not cursor.fetchone():
+            raise HTTPException(status_code=404, detail="카테고리를 찾을 수 없습니다")
+
+        # display_order 업데이트
+        cursor.execute("""
+            UPDATE categories
+            SET display_order = ?
+            WHERE id = ?
+        """, (data.display_order, category_id))
+        conn.commit()
+
+        return {"success": True, "message": "순서가 변경되었습니다"}
 
 
 @router.delete("/{category_id}")

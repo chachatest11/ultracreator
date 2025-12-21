@@ -64,19 +64,27 @@ async function loadCategories() {
         data.categories.forEach((category, index) => {
             const item = document.createElement('div');
             item.className = 'category-item';
+            item.draggable = true;
+            item.dataset.categoryId = category.id;
+            item.dataset.displayOrder = category.display_order;
+
             item.innerHTML = `
-                <div class="category-order-controls">
-                    <button class="btn-order" onclick="moveCategoryOrder(${category.id}, 'up')" ${index === 0 ? 'disabled' : ''} title="위로 이동">▲</button>
-                    <button class="btn-order" onclick="moveCategoryOrder(${category.id}, 'down')" ${index === data.categories.length - 1 ? 'disabled' : ''} title="아래로 이동">▼</button>
-                </div>
+                <div class="category-drag-handle" title="드래그하여 순서 변경">⋮⋮</div>
                 <span class="category-item-name">${category.name} (${category.channel_count})</span>
                 <div class="category-item-actions">
                     ${category.id !== 1 ? `
-                        <button class="btn-edit" onclick="editCategory(${category.id}, '${category.name}')">수정</button>
+                        <button class="btn-edit" onclick="editCategory(${category.id}, '${escapeHtml(category.name)}')">수정</button>
                         <button class="btn-delete" onclick="deleteCategory(${category.id})">삭제</button>
                     ` : ''}
                 </div>
             `;
+
+            // 드래그 이벤트 핸들러
+            item.addEventListener('dragstart', handleDragStart);
+            item.addEventListener('dragover', handleDragOver);
+            item.addEventListener('drop', handleDrop);
+            item.addEventListener('dragend', handleDragEnd);
+
             categoryList.appendChild(item);
         });
 
@@ -181,27 +189,83 @@ async function deleteCategory(id) {
     }
 }
 
-async function moveCategoryOrder(categoryId, direction) {
+// 드래그 앤 드롭 관련 변수
+let draggedCategoryItem = null;
+
+function handleDragStart(e) {
+    draggedCategoryItem = this;
+    this.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/html', this.innerHTML);
+}
+
+function handleDragOver(e) {
+    if (e.preventDefault) {
+        e.preventDefault();
+    }
+    e.dataTransfer.dropEffect = 'move';
+
+    if (this !== draggedCategoryItem) {
+        this.classList.add('drag-over');
+    }
+    return false;
+}
+
+function handleDrop(e) {
+    if (e.stopPropagation) {
+        e.stopPropagation();
+    }
+
+    if (draggedCategoryItem !== this) {
+        // 순서 교환
+        const draggedId = parseInt(draggedCategoryItem.dataset.categoryId);
+        const targetId = parseInt(this.dataset.categoryId);
+        const draggedOrder = parseInt(draggedCategoryItem.dataset.displayOrder);
+        const targetOrder = parseInt(this.dataset.displayOrder);
+
+        // 서버에 순서 업데이트 요청
+        swapCategoryOrder(draggedId, targetId, draggedOrder, targetOrder);
+    }
+
+    this.classList.remove('drag-over');
+    return false;
+}
+
+function handleDragEnd(e) {
+    this.classList.remove('dragging');
+
+    // 모든 drag-over 클래스 제거
+    document.querySelectorAll('.category-item').forEach(item => {
+        item.classList.remove('drag-over');
+    });
+}
+
+async function swapCategoryOrder(draggedId, targetId, draggedOrder, targetOrder) {
     try {
-        const response = await fetch(`/api/categories/${categoryId}/reorder?direction=${direction}`, {
-            method: 'PUT'
+        // 두 카테고리의 display_order 교환
+        const response1 = await fetch(`/api/categories/${draggedId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ display_order: targetOrder })
         });
 
-        const result = await response.json();
+        const response2 = await fetch(`/api/categories/${targetId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ display_order: draggedOrder })
+        });
 
-        if (response.ok) {
-            // 카테고리 목록 다시 로드 (모달 내)
+        if (response1.ok && response2.ok) {
+            // 카테고리 목록 다시 로드
             await loadCategories();
-            // 탭도 다시 로드 (페이지 리로드 없이)
+            // 탭도 다시 로드
             await reloadCategoryTabs();
         } else {
-            if (!result.message.includes('최상단') && !result.message.includes('최하단')) {
-                alert(result.detail || result.message || '순서 변경 실패');
-            }
+            alert('순서 변경에 실패했습니다.');
         }
     } catch (error) {
         console.error('카테고리 순서 변경 실패:', error);
-        alert('순서 변경에 실패했습니다.');
+        alert('순서 변경에 실패했습니다: ' + error.message);
     }
 }
 
@@ -840,6 +904,16 @@ async function applyFilters() {
     } finally {
         showLoading(false);
     }
+}
+
+function clearSearchResults() {
+    currentVideos = [];
+    selectedVideoIds.clear();
+    renderVideoGrid();
+    updateResultInfo();
+
+    // 결과 옵션 숨김
+    document.getElementById('resultOptions').style.display = 'none';
 }
 
 // ========================================

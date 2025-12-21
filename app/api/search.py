@@ -53,20 +53,17 @@ def search_videos(data: SearchRequest):
     all_videos = []
     errors = []
 
-    # 채널 수에 따라 각 채널별 할당량 계산
-    num_channels = len(channels)
-    videos_per_channel = max(1, data.max_videos // num_channels) if num_channels > 0 else data.max_videos
-
+    # 각 채널에서 max_videos 개수만큼 가져오기
     for channel_row in channels:
         db_channel_id = channel_row[0]
         youtube_channel_id = channel_row[1]
         channel_title = channel_row[2]
 
         try:
-            # YouTube API로 쇼츠 가져오기 (채널별 할당량 적용)
+            # YouTube API로 쇼츠 가져오기 (채널당 max_videos개)
             shorts = youtube_api.get_channel_shorts(
                 youtube_channel_id,
-                max_results=videos_per_channel
+                max_results=data.max_videos
             )
 
             # DB에 upsert
