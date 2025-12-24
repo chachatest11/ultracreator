@@ -1,0 +1,403 @@
+"""
+Niche Explorer - Keyword-based Niche Discovery
+"""
+import streamlit as st
+import pandas as pd
+import plotly.express as px
+from core.niche import NicheExplorer, get_niche_results
+
+st.set_page_config(page_title="Niche Explorer", page_icon="🎯", layout="wide")
+
+st.title("🎯 Niche Explorer")
+st.markdown("키워드 기반 니치 탐색 및 클러스터 분석")
+
+# Initialize session state
+if 'niche_run_id' not in st.session_state:
+    st.session_state.niche_run_id = None
+
+# Input section
+st.subheader("🔍 탐색 설정")
+
+col1, col2, col3, col4 = st.columns([3, 1, 1, 1])
+
+with col1:
+    keyword = st.text_input(
+        "키워드",
+        placeholder="예: cute animals, cooking shorts, travel tips",
+        help="영어 키워드 권장 (YouTube 검색은 영어가 더 많은 결과를 반환)"
+    )
+
+with col2:
+    max_videos = st.number_input(
+        "최대 영상 수",
+        min_value=50,
+        max_value=500,
+        value=200,
+        step=50,
+        help="수집할 영상 개수 (많을수록 정확하지만 느림)"
+    )
+
+with col3:
+    n_clusters = st.number_input(
+        "클러스터 수",
+        min_value=3,
+        max_value=15,
+        value=8,
+        step=1,
+        help="그룹화할 클러스터 개수"
+    )
+
+with col4:
+    use_cache = st.checkbox(
+        "캐시 사용",
+        value=True,
+        help="24시간 내 동일 검색 결과 재사용"
+    )
+
+# Search button
+if st.button("🚀 탐색 시작", type="primary", use_container_width=True):
+    if not keyword:
+        st.error("키워드를 입력해주세요.")
+    else:
+        with st.spinner(f"'{keyword}' 키워드로 니치를 탐색하는 중..."):
+            try:
+                explorer = NicheExplorer()
+
+                # Progress updates
+                progress_placeholder = st.empty()
+                progress_bar = st.progress(0)
+
+                progress_placeholder.info("📥 YouTube에서 영상 검색 중...")
+                progress_bar.progress(0.2)
+
+                progress_placeholder.info("📊 영상 상세 정보 수집 중...")
+                progress_bar.progress(0.4)
+
+                progress_placeholder.info("🤖 AI 임베딩 생성 중...")
+                progress_bar.progress(0.6)
+
+                progress_placeholder.info("🔬 클러스터링 분석 중...")
+                progress_bar.progress(0.8)
+
+                niche_run_id = explorer.explore(
+                    keyword=keyword,
+                    max_videos=max_videos,
+                    n_clusters=n_clusters,
+                    use_cache=use_cache
+                )
+
+                progress_bar.progress(1.0)
+                progress_placeholder.empty()
+                progress_bar.empty()
+
+                if niche_run_id:
+                    st.session_state.niche_run_id = niche_run_id
+                    st.success(f"✓ 탐색 완료! {n_clusters}개의 클러스터를 발견했습니다.")
+                    st.rerun()
+                else:
+                    st.error("탐색에 실패했습니다. 다른 키워드로 시도해보세요.")
+
+            except Exception as e:
+                st.error(f"오류 발생: {e}")
+
+# Display results
+if st.session_state.niche_run_id:
+    st.markdown("---")
+    st.subheader("📊 탐색 결과")
+
+    try:
+        results = get_niche_results(st.session_state.niche_run_id)
+        clusters = results['clusters']
+
+        # Build DataFrame
+        cluster_data = []
+
+        for cluster in clusters:
+            cluster_data.append({
+                "클러스터": f"#{cluster['cluster_index']}",
+                "라벨": cluster['label'],
+                "영상 수": cluster['video_count'],
+                "중앙 조회수": cluster['median_views'],
+                "평균 조회수": cluster['avg_views'],
+                "고유 채널 수": cluster['unique_channels'],
+                "Top10 집중도": f"{cluster['top10_concentration'] * 100:.1f}%",
+                "Shorts 비중": f"{cluster['shorts_ratio'] * 100:.1f}%",
+                "종합 점수": round(cluster['final_score'], 2)
+            })
+
+        df = pd.DataFrame(cluster_data)
+
+        # Summary metrics
+        col1, col2, col3, col4 = st.columns(4)
+
+        with col1:
+            st.metric("총 클러스터", len(clusters))
+
+        with col2:
+            total_videos = sum(c['video_count'] for c in clusters)
+            st.metric("분석된 영상", total_videos)
+
+        with col3:
+            avg_channels = sum(c['unique_channels'] for c in clusters) / len(clusters)
+            st.metric("평균 고유 채널", f"{avg_channels:.0f}")
+
+        with col4:
+            avg_shorts = sum(c['shorts_ratio'] for c in clusters) / len(clusters)
+            st.metric("평균 Shorts 비중", f"{avg_shorts * 100:.1f}%")
+
+        # Display table
+        st.markdown("#### 클러스터 요약")
+
+        st.dataframe(
+            df,
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "중앙 조회수": st.column_config.NumberColumn(format="%d"),
+                "평균 조회수": st.column_config.NumberColumn(format="%d"),
+                "종합 점수": st.column_config.NumberColumn(format="%.2f")
+            }
+        )
+
+        st.caption("""
+        **종합 점수 공식:** 성과 - 0.7×경쟁 - 0.5×집중도
+        - 높을수록 진입하기 좋은 니치
+        - 성과 = log(중앙 조회수 + 1)
+        - 경쟁 = log(고유 채널 수 + 1)
+        - 집중도 = Top10 조회수 비중 (높을수록 소수에 집중)
+        """)
+
+        # Visualizations
+        st.markdown("---")
+        st.subheader("📈 시각화")
+
+        tab1, tab2, tab3 = st.tabs(["점수 분석", "성과 vs 경쟁", "Shorts 분석"])
+
+        with tab1:
+            # Final score comparison
+            fig = px.bar(
+                df,
+                x="클러스터",
+                y="종합 점수",
+                color="종합 점수",
+                title="클러스터별 종합 점수",
+                labels={"종합 점수": "점수"},
+                color_continuous_scale="RdYlGn"
+            )
+            st.plotly_chart(fig, use_container_width=True)
+
+            st.markdown("#### 점수 구성 요소")
+
+            # Extract score components
+            score_components = []
+            for cluster in clusters:
+                score_components.append({
+                    "클러스터": f"#{cluster['cluster_index']}",
+                    "성과 점수": cluster['performance_score'],
+                    "경쟁 점수": cluster['competition_score'],
+                    "집중도 점수": cluster['concentration_score']
+                })
+
+            score_df = pd.DataFrame(score_components)
+
+            fig = px.bar(
+                score_df.melt(id_vars=['클러스터'], var_name='구성요소', value_name='점수'),
+                x="클러스터",
+                y="점수",
+                color="구성요소",
+                barmode="group",
+                title="클러스터별 점수 구성 요소"
+            )
+            st.plotly_chart(fig, use_container_width=True)
+
+        with tab2:
+            # Performance vs Competition scatter
+            scatter_data = []
+            for cluster in clusters:
+                scatter_data.append({
+                    "클러스터": cluster['label'][:30],  # Truncate long labels
+                    "중앙 조회수": cluster['median_views'],
+                    "고유 채널 수": cluster['unique_channels'],
+                    "종합 점수": cluster['final_score']
+                })
+
+            scatter_df = pd.DataFrame(scatter_data)
+
+            fig = px.scatter(
+                scatter_df,
+                x="고유 채널 수",
+                y="중앙 조회수",
+                size="종합 점수",
+                color="종합 점수",
+                text="클러스터",
+                title="성과 vs 경쟁 분포",
+                labels={"고유 채널 수": "경쟁 (고유 채널 수)", "중앙 조회수": "성과 (중앙 조회수)"},
+                color_continuous_scale="RdYlGn"
+            )
+            fig.update_traces(textposition='top center')
+            st.plotly_chart(fig, use_container_width=True)
+
+            st.caption("오른쪽 위: 높은 성과 + 높은 경쟁 | 왼쪽 위: 높은 성과 + 낮은 경쟁 (최적)")
+
+        with tab3:
+            # Shorts ratio by cluster
+            fig = px.bar(
+                df,
+                x="클러스터",
+                y="Shorts 비중",
+                title="클러스터별 Shorts 비중",
+                labels={"Shorts 비중": "비중"}
+            )
+            st.plotly_chart(fig, use_container_width=True)
+
+            # Video count vs Shorts ratio
+            video_shorts_data = []
+            for cluster in clusters:
+                video_shorts_data.append({
+                    "클러스터": cluster['label'][:30],
+                    "영상 수": cluster['video_count'],
+                    "Shorts 비중": cluster['shorts_ratio'] * 100
+                })
+
+            vs_df = pd.DataFrame(video_shorts_data)
+
+            fig = px.scatter(
+                vs_df,
+                x="영상 수",
+                y="Shorts 비중",
+                text="클러스터",
+                title="클러스터 크기 vs Shorts 비중",
+                labels={"영상 수": "영상 수", "Shorts 비중": "Shorts 비중 (%)"}
+            )
+            fig.update_traces(textposition='top center')
+            st.plotly_chart(fig, use_container_width=True)
+
+        # Detailed cluster view
+        st.markdown("---")
+        st.subheader("🔍 클러스터 상세")
+
+        selected_cluster_label = st.selectbox(
+            "클러스터 선택",
+            [c['label'] for c in clusters]
+        )
+
+        selected_cluster = next(c for c in clusters if c['label'] == selected_cluster_label)
+
+        col1, col2 = st.columns([2, 1])
+
+        with col1:
+            st.markdown(f"#### {selected_cluster_label}")
+
+            st.markdown(f"""
+            - **영상 수:** {selected_cluster['video_count']}
+            - **중앙 조회수:** {selected_cluster['median_views']:,}
+            - **평균 조회수:** {selected_cluster['avg_views']:,}
+            - **고유 채널:** {selected_cluster['unique_channels']}
+            - **Top10 집중도:** {selected_cluster['top10_concentration'] * 100:.1f}%
+            - **Shorts 비중:** {selected_cluster['shorts_ratio'] * 100:.1f}%
+            - **종합 점수:** {selected_cluster['final_score']:.2f}
+            """)
+
+        with col2:
+            # Score badge
+            score = selected_cluster['final_score']
+
+            if score > 3:
+                badge = "🟢 진입 추천"
+                color = "green"
+            elif score > 1:
+                badge = "🟡 보통"
+                color = "orange"
+            else:
+                badge = "🔴 경쟁 치열"
+                color = "red"
+
+            st.markdown(f"### {badge}")
+            st.markdown(f"**점수:** {score:.2f}")
+
+        # Sample videos
+        st.markdown("#### 📹 대표 영상 (조회수 상위 5개)")
+
+        sample_videos = selected_cluster['sample_videos']
+
+        if sample_videos:
+            video_df = pd.DataFrame([
+                {
+                    "제목": v['title'],
+                    "조회수": v['view_count'],
+                    "영상 ID": v['video_id'],
+                    "YouTube 링크": f"https://youtube.com/watch?v={v['video_id']}"
+                }
+                for v in sample_videos
+            ])
+
+            st.dataframe(
+                video_df,
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "조회수": st.column_config.NumberColumn(format="%d"),
+                    "YouTube 링크": st.column_config.LinkColumn("링크")
+                }
+            )
+        else:
+            st.info("대표 영상이 없습니다.")
+
+        # Sample channels
+        st.markdown("#### 📺 주요 채널 (영상 수 상위 5개)")
+
+        sample_channels = selected_cluster['sample_channels']
+
+        if sample_channels:
+            channel_df = pd.DataFrame([
+                {
+                    "채널 ID": ch['channel_id'],
+                    "이 클러스터 영상 수": ch['video_count'],
+                    "YouTube 링크": f"https://youtube.com/channel/{ch['channel_id']}"
+                }
+                for ch in sample_channels
+            ])
+
+            st.dataframe(
+                channel_df,
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "YouTube 링크": st.column_config.LinkColumn("링크")
+                }
+            )
+        else:
+            st.info("주요 채널 정보가 없습니다.")
+
+    except Exception as e:
+        st.error(f"결과를 불러오는 중 오류가 발생했습니다: {e}")
+
+else:
+    st.info("👆 위에서 키워드를 입력하고 탐색을 시작해보세요!")
+
+    st.markdown("""
+    ### 사용 가이드
+
+    1. **키워드 입력**: 탐색하고 싶은 니치의 키워드를 입력하세요.
+       - 예: "cute cats", "cooking recipes", "workout shorts"
+       - 영어 키워드가 더 많은 결과를 제공합니다.
+
+    2. **설정 조정**:
+       - **최대 영상 수**: 많을수록 정확하지만 시간이 오래 걸립니다 (권장: 200~300)
+       - **클러스터 수**: 세분화 정도 (권장: 6~10)
+       - **캐시 사용**: 동일한 검색을 24시간 내 재실행 시 빠르게 결과 확인
+
+    3. **결과 분석**:
+       - 종합 점수가 높은 클러스터가 진입하기 좋은 니치입니다.
+       - 성과는 높지만 경쟁이 낮은 클러스터를 찾아보세요.
+       - 대표 영상과 채널을 참고하여 콘텐츠 방향을 정하세요.
+
+    4. **활용 팁**:
+       - 여러 키워드로 탐색하여 트렌드를 파악하세요.
+       - Shorts 중심 콘텐츠라면 Shorts 비중이 높은 클러스터에 주목하세요.
+       - 발견한 채널을 Dashboard에 추가하여 지속적으로 모니터링하세요.
+    """)
+
+# Footer
+st.markdown("---")
+st.caption("💡 팁: AI가 자동으로 비슷한 영상들을 그룹화하여 숨겨진 니치를 발견해줍니다!")

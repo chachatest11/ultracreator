@@ -1,263 +1,229 @@
-# YouTube Shorts Downloader
+# NexLev Mini - YouTube Analytics Dashboard
 
-해외 양산형 쇼츠 채널의 영상을 수집하고 다운로드할 수 있는 웹 애플리케이션입니다.
+YouTube 채널 분석 및 니치 탐색 도구 (해외 양산형 쇼츠 리서치)
 
-## 주요 기능
+## 기능
 
-- **카테고리 관리**: 채널을 그룹별로 분류하여 관리
-- **채널 저장**: YouTube 채널 URL, 핸들(@), 채널 ID를 DB에 영구 저장
-- **실시간 영상 수집**: YouTube Data API v3를 통한 최신 쇼츠 메타데이터 수집
-- **필터링 및 정렬**: 조회수 필터, 최신순/조회수순 정렬
-- **일괄 다운로드**: 선택한 영상을 yt-dlp로 일괄 다운로드
-- **다크 테마 UI**: 카드형 그리드 레이아웃
+### 📈 Dashboard
+- 관심 채널 추가/삭제/갱신
+- 주요 지표 모니터링 (구독자, 조회수, 성장률)
+- Shorts 중심 필터링
+- 업로드 패턴 분석
 
-## 기술 스택
+### 🔍 Channel Detail
+- 채널 상세 분석
+- 최근 50개 영상 데이터
+- 조회수 분포 시각화
+- 업로드 패턴 (요일/시간대)
 
-- **Backend**: Python, FastAPI
-- **Frontend**: Jinja2, Vanilla JavaScript, Custom CSS
-- **Database**: SQLite
-- **Video Download**: yt-dlp
-- **YouTube API**: YouTube Data API v3
+### 📋 Watchlists
+- 워치리스트 생성/관리
+- 채널 그룹화 및 비교
+- 성과 랭킹
+- 패턴 분석
 
-## 요구사항
+### 🎯 Niche Explorer
+- 키워드 기반 영상 수집 (200~500개)
+- AI 임베딩 + 클러스터링
+- 니치 점수화 (성과/경쟁/집중도)
+- 진입 가능성 분석
 
-- Python 3.8+
-- yt-dlp (영상 다운로드용)
-- YouTube Data API v3 Key
+## 시작하기
 
-## 설치 방법
+### 1. 사전 요구사항
 
-### 1. 저장소 클론
+- Python 3.8 이상
+- YouTube Data API v3 키
+
+### 2. YouTube API 키 발급
+
+1. [Google Cloud Console](https://console.cloud.google.com/) 접속
+2. 새 프로젝트 생성
+3. "API 및 서비스" > "라이브러리" 이동
+4. "YouTube Data API v3" 검색 및 활성화
+5. "사용자 인증 정보" > "사용자 인증 정보 만들기" > "API 키" 선택
+6. API 키 복사
+
+### 3. 설치
 
 ```bash
-git clone <repository-url>
-cd shortscrwal
-```
+# 저장소 클론 또는 다운로드
+cd ultracreator
 
-### 2. Python 패키지 설치
+# 가상환경 생성 (권장)
+python -m venv venv
 
-```bash
+# 가상환경 활성화
+# Windows:
+venv\Scripts\activate
+# Mac/Linux:
+source venv/bin/activate
+
+# 의존성 설치
 pip install -r requirements.txt
 ```
 
-### 3. yt-dlp 설치
+### 4. 환경 설정
 
-**macOS (Homebrew):**
-```bash
-brew install yt-dlp
-```
-
-**Linux (apt):**
-```bash
-sudo apt install yt-dlp
-```
-
-또는 pip으로 설치:
-```bash
-pip install yt-dlp
-```
-
-**Windows:**
-- [yt-dlp GitHub Releases](https://github.com/yt-dlp/yt-dlp/releases)에서 다운로드
-- 실행 파일을 PATH에 추가
-
-### 4. YouTube API Key 준비
-
-1. [Google Cloud Console](https://console.cloud.google.com/)에 접속
-2. 새 프로젝트 생성 또는 기존 프로젝트 선택
-3. "API 및 서비스" > "라이브러리"로 이동
-4. "YouTube Data API v3" 검색 및 활성화
-5. "사용자 인증 정보" > "사용자 인증 정보 만들기" > "API 키" 선택
-6. 생성된 API 키 복사
-
-## 실행 방법
-
-### 서버 시작
+`.env` 파일을 프로젝트 루트에 생성:
 
 ```bash
-python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+YOUTUBE_API_KEY=your_api_key_here
 ```
 
-또는:
+**중요:** `.env` 파일에 실제 API 키를 입력하세요.
+
+### 5. 실행
 
 ```bash
-cd app
-python main.py
+streamlit run app.py
 ```
 
-### 브라우저 접속
-
-```
-http://localhost:8000
-```
+브라우저가 자동으로 열리며 `http://localhost:8501`에서 앱이 실행됩니다.
 
 ## 사용 방법
 
-### 1. API Key 입력
-- 메인 화면 상단에 YouTube API Key 입력
-- 입력한 키는 브라우저 로컬 스토리지에 저장됩니다
+### 채널 추가
 
-### 2. 카테고리 관리
-- "카테고리 관리" 버튼 클릭
-- 새 카테고리 추가, 수정, 삭제 가능
-- 기본 카테고리는 자동 생성됩니다
+1. **Dashboard** 페이지로 이동
+2. 사이드바에서 채널 정보 입력:
+   - 채널 ID: `UC1234567890abcdefghijk`
+   - 핸들: `@username`
+   - URL: `https://youtube.com/@username`
+3. "채널 추가" 버튼 클릭
 
-### 3. 채널 등록
-- 채널 입력란에 YouTube 채널 정보 입력 (여러 줄 가능)
-- 지원 형식:
-  - `https://youtube.com/@channelname`
-  - `https://www.youtube.com/channel/UCxxxx`
-  - `UCxxxx` (채널 ID 직접 입력)
-- "검색" 버튼 클릭으로 채널 저장 및 영상 수집
+### 채널 분석
 
-### 4. 영상 검색 및 필터링
-- 최대 영상 수 설정 (기본: 50개)
-- 검색 후 정렬 방식 선택 (최신순/조회수순)
-- 최소 조회수 필터 (만 단위)
+1. **Dashboard**에서 채널 선택
+2. "📊 상세 보기" 클릭 또는 **Channel Detail** 페이지 이동
+3. 주요 지표 확인:
+   - 구독자/조회수/성장률
+   - 업로드 주기/패턴
+   - Shorts 비중
+   - 조회수 분산 (안정형/한방형)
 
-### 5. 영상 다운로드
-- 원하는 영상의 "영상추출" 체크박스 선택
-- "선택 영상 다운로드" 버튼 클릭
-- 다운로드된 파일은 `downloads/{채널명}/{video_id}.mp4` 경로에 저장
+### 워치리스트 활용
 
-## 프로젝트 구조
+1. **Watchlists** 페이지 이동
+2. 사이드바에서 새 워치리스트 생성
+3. 채널 추가/제거
+4. 비교 테이블 및 차트로 성과 분석
+
+### 니치 탐색
+
+1. **Niche Explorer** 페이지 이동
+2. 키워드 입력 (예: "cute animals", "cooking shorts")
+3. 설정 조정:
+   - 최대 영상 수: 200~300 권장
+   - 클러스터 수: 6~10 권장
+4. "🚀 탐색 시작" 클릭
+5. 결과 분석:
+   - 종합 점수가 높은 클러스터 확인
+   - 대표 영상/채널 참고
+   - 발견한 채널을 Dashboard에 추가
+
+## 주요 지표 설명
+
+### 업로드 주기
+최근 20개 영상의 업로드 간격 평균/중앙값 (일 단위)
+
+### 조회수 분산 (CV)
+- **안정형 (CV < 0.5)**: 조회수가 일정하게 유지
+- **한방형 (CV ≥ 0.5)**: 특정 영상에 조회수 집중
+
+### Shorts 비중
+최근 50개 영상 중 60초 이하 영상의 비율
+
+### Top5 집중도
+최근 50개 영상 중 상위 5개 영상이 차지하는 조회수 비율
+
+### 니치 종합 점수
+```
+종합 점수 = 성과 - 0.7×경쟁 - 0.5×집중도
+```
+- **성과**: log(중앙 조회수 + 1)
+- **경쟁**: log(고유 채널 수 + 1)
+- **집중도**: Top10 조회수 비중
+
+점수가 높을수록 진입하기 좋은 니치입니다.
+
+## 폴더 구조
 
 ```
-shortscrwal/
-├── app/
-│   ├── main.py                 # FastAPI 메인 앱
-│   ├── db.py                   # 데이터베이스 초기화 및 연결
-│   ├── api/
-│   │   ├── youtube.py          # YouTube API 유틸리티
-│   │   ├── downloader.py       # yt-dlp 다운로더
-│   │   ├── categories.py       # 카테고리 API 라우터
-│   │   ├── channels.py         # 채널 API 라우터
-│   │   ├── search.py           # 검색/수집 API 라우터
-│   │   └── downloads.py        # 다운로드 API 라우터
-│   ├── models/
-│   │   ├── category.py         # 카테고리 모델
-│   │   ├── channel.py          # 채널 모델
-│   │   ├── video.py            # 비디오 모델
-│   │   └── download.py         # 다운로드 모델
-│   ├── templates/
-│   │   ├── base.html           # 베이스 템플릿
-│   │   └── index.html          # 메인 페이지
-│   ├── static/
-│   │   ├── css/style.css       # 스타일시트
-│   │   └── js/app.js           # JavaScript 클라이언트
-│   └── database.db             # SQLite 데이터베이스
-├── downloads/                  # 다운로드된 영상 저장 폴더
-├── requirements.txt            # Python 패키지 목록
-└── README.md                   # 프로젝트 문서
+ultracreator/
+├── app.py                      # 메인 진입점
+├── pages/
+│   ├── 1_Dashboard.py          # 대시보드
+│   ├── 2_Channel_Detail.py     # 채널 상세
+│   ├── 3_Watchlists.py         # 워치리스트
+│   └── 4_Niche_Explorer.py     # 니치 탐색
+├── core/
+│   ├── youtube_api.py          # YouTube API 클라이언트
+│   ├── db.py                   # 데이터베이스 작업
+│   ├── models.py               # 데이터 모델
+│   ├── metrics.py              # 지표 계산
+│   ├── niche.py                # 니치 탐색 엔진
+│   └── jobs.py                 # 데이터 수집 작업
+├── requirements.txt            # Python 의존성
+├── .env                        # 환경 변수 (직접 생성)
+├── db.sqlite                   # SQLite 데이터베이스 (자동 생성)
+└── README.md                   # 이 파일
 ```
-
-## 데이터베이스 스키마
-
-### categories (카테고리)
-- `id`: PRIMARY KEY
-- `name`: 카테고리 이름 (UNIQUE)
-- `created_at`: 생성 일시
-
-### channels (채널)
-- `id`: PRIMARY KEY
-- `category_id`: 카테고리 ID (FK)
-- `channel_input`: 사용자 입력값
-- `channel_id`: YouTube 채널 ID
-- `title`: 채널명
-- `subscriber_count`: 구독자 수
-- `country`: 국가
-- `is_active`: 활성 상태
-- `created_at`: 생성 일시
-- `updated_at`: 수정 일시
-
-### videos (영상)
-- `id`: PRIMARY KEY
-- `channel_id`: YouTube 채널 ID
-- `video_id`: YouTube 영상 ID (UNIQUE)
-- `title`: 영상 제목
-- `published_at`: 업로드 일시
-- `view_count`: 조회수
-- `thumbnail_url`: 썸네일 URL
-- `duration_seconds`: 영상 길이
-- `is_short`: 쇼츠 여부
-- `created_at`: 생성 일시
-- `updated_at`: 수정 일시
-
-### downloads (다운로드)
-- `id`: PRIMARY KEY
-- `video_id`: YouTube 영상 ID
-- `status`: 상태 (queued/running/done/failed)
-- `file_path`: 파일 경로
-- `error_message`: 에러 메시지
-- `created_at`: 생성 일시
-- `updated_at`: 수정 일시
-
-## API 엔드포인트
-
-### 카테고리
-- `GET /api/categories/` - 카테고리 목록 조회
-- `POST /api/categories/` - 카테고리 생성
-- `PUT /api/categories/{id}` - 카테고리 수정
-- `DELETE /api/categories/{id}` - 카테고리 삭제
-
-### 채널
-- `GET /api/channels/` - 채널 목록 조회
-- `POST /api/channels/bulk_upsert` - 채널 일괄 저장/업데이트
-- `PUT /api/channels/{id}/toggle_active` - 채널 활성/비활성 토글
-- `DELETE /api/channels/{id}` - 채널 삭제
-
-### 검색/수집
-- `POST /api/search/` - 영상 검색 및 수집
-- `GET /api/search/videos` - 저장된 영상 조회
-
-### 다운로드
-- `POST /api/downloads/start` - 다운로드 시작
-- `GET /api/downloads/status` - 다운로드 상태 조회
-- `GET /api/downloads/file/{video_id}` - 파일 다운로드
-- `GET /api/downloads/history` - 다운로드 히스토리
-
-## 주의사항
-
-### YouTube API 쿼터
-- YouTube Data API v3는 일일 쿼터 제한이 있습니다 (기본: 10,000 units/day)
-- 쿼터를 초과하면 API 호출이 실패합니다
-- 채널당 약 100-200 units 소모됩니다
-
-### 저작권 및 이용 약관
-- **이 도구는 권한이 있는 콘텐츠만 다운로드하는 용도로 사용하세요**
-- YouTube 서비스 약관을 준수하세요
-- 타인의 저작권을 침해하지 마세요
-- 교육, 연구, 백업 목적으로만 사용하세요
-
-### yt-dlp 요구사항
-- yt-dlp가 시스템에 설치되어 있어야 합니다
-- ffmpeg가 설치되어 있으면 더 나은 품질로 다운로드할 수 있습니다
 
 ## 문제 해결
 
-### "yt-dlp가 설치되어 있지 않습니다"
-```bash
-pip install yt-dlp
-# 또는
-brew install yt-dlp  # macOS
+### API 키 오류
 ```
+YouTube API key not found
+```
+→ `.env` 파일에 `YOUTUBE_API_KEY`가 설정되었는지 확인
 
-### "YouTube API Key가 필요합니다"
-- Google Cloud Console에서 YouTube Data API v3를 활성화하고 API 키를 생성하세요
+### 쿼터 초과
+```
+quotaExceeded
+```
+→ YouTube API는 일일 쿼터 제한이 있습니다 (기본 10,000 유닛)
+→ 다음날까지 대기하거나 Google Cloud에서 쿼터 증가 요청
 
-### "채널 ID를 찾을 수 없습니다"
-- 채널 URL 형식을 확인하세요
-- @핸들, 채널 ID (UCxxxx), 또는 전체 URL을 입력하세요
+### 채널을 찾을 수 없음
+```
+Channel not found
+```
+→ 채널 ID/핸들/URL이 정확한지 확인
+→ 비공개 채널은 검색되지 않습니다
 
-### 다운로드 실패
-- 네트워크 연결을 확인하세요
-- 영상이 비공개 또는 삭제되지 않았는지 확인하세요
-- yt-dlp를 최신 버전으로 업데이트하세요: `pip install -U yt-dlp`
+### 느린 성능
+- 니치 탐색에서 영상 수를 줄이세요 (100~200개)
+- 클러스터 수를 줄이세요 (5~8개)
+- 캐시 사용 옵션을 활성화하세요
+
+## 확장 포인트 (TODO)
+
+- [ ] OAuth 2.0 인증 추가 (개인 채널 상세 정보)
+- [ ] 댓글 분석 기능
+- [ ] 태그/카테고리 분석
+- [ ] 자동 리포트 생성 (PDF/Excel)
+- [ ] 알림 설정 (특정 조건 달성 시)
+- [ ] 더 많은 영상 수집 (페이지네이션 개선)
+- [ ] 다국어 지원
+
+## 기술 스택
+
+- **Frontend**: Streamlit
+- **Backend**: Python
+- **Database**: SQLite
+- **API**: YouTube Data API v3
+- **ML/NLP**: sentence-transformers, scikit-learn
+- **Visualization**: Plotly
 
 ## 라이선스
 
-이 프로젝트는 교육 및 연구 목적으로 제공됩니다. 저작권법과 YouTube 서비스 약관을 준수하여 사용하세요.
+MIT License
 
-## 기여
+## 지원
 
-버그 리포트나 기능 제안은 이슈로 등록해 주세요.
+문제가 발생하면 GitHub Issues에 보고해주세요.
+
+---
+
+Made with ❤️ for YouTube Shorts Researchers
