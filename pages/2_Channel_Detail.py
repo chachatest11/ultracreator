@@ -380,8 +380,27 @@ if st.session_state.similar_channels_data is not None:
     else:
         st.success(f"✅ {len(similar_channels)}개의 유사 채널을 발견했습니다!")
 
+        # Sort options
+        col1, col2 = st.columns([2, 6])
+        with col1:
+            sort_option = st.selectbox(
+                "정렬 기준",
+                ["신뢰도 순", "구독자 수 순", "영상 수 순", "출현 횟수 순"],
+                key="similar_channels_sort"
+            )
+
+        # Sort channels based on selected option
+        if sort_option == "구독자 수 순":
+            similar_channels_sorted = sorted(similar_channels, key=lambda x: x['subscriber_count'], reverse=True)
+        elif sort_option == "영상 수 순":
+            similar_channels_sorted = sorted(similar_channels, key=lambda x: x['video_count'], reverse=True)
+        elif sort_option == "출현 횟수 순":
+            similar_channels_sorted = sorted(similar_channels, key=lambda x: x['appearance_count'], reverse=True)
+        else:  # 신뢰도 순 (기본)
+            similar_channels_sorted = sorted(similar_channels, key=lambda x: x['confidence_score'], reverse=True)
+
         # Display similar channels
-        for i, ch in enumerate(similar_channels):
+        for i, ch in enumerate(similar_channels_sorted):
             with st.container():
                 col1, col2, col3 = st.columns([1, 3, 2])
 
@@ -443,7 +462,7 @@ if st.session_state.similar_channels_data is not None:
             "영상 수": ch['video_count'],
             "출현 횟수": ch['appearance_count'],
             "신뢰도 (%)": ch['confidence_score']
-        } for i, ch in enumerate(similar_channels)]
+        } for i, ch in enumerate(similar_channels_sorted)]
 
         df_export = pd.DataFrame(export_data)
         csv = df_export.to_csv(index=False, encoding='utf-8-sig')
