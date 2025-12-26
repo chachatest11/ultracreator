@@ -13,7 +13,7 @@ def find_similar_channels(
     top_videos_count: int = 10,
     related_per_video: int = 20,
     min_appearances: int = 2
-) -> List[Dict[str, Any]]:
+) -> Dict[str, Any]:
     """
     Find similar channels by analyzing related videos
 
@@ -24,24 +24,37 @@ def find_similar_channels(
         min_appearances: Minimum number of times a channel must appear (default: 2)
 
     Returns:
-        List of similar channels with metadata:
-        - channel_id: Channel ID
-        - title: Channel name
-        - subscriber_count: Subscriber count
-        - appearance_count: How many times this channel appeared in related videos
-        - confidence_score: Score from 0-100 indicating similarity strength
+        Dict with:
+        - channels: List of similar channels with metadata
+        - debug_info: Debug information about the search process
     """
+    debug_info = {
+        "channel_found": False,
+        "videos_count": 0,
+        "videos_with_snapshots": 0,
+        "top_videos_analyzed": 0,
+        "total_related_videos": 0,
+        "unique_channels_found": 0,
+        "channels_after_filter": 0,
+        "errors": []
+    }
+
     # Get channel from database by YouTube channel ID
     channel = db.get_channel_by_youtube_id(channel_id)
 
     if not channel:
-        return []
+        debug_info["errors"].append("채널을 데이터베이스에서 찾을 수 없습니다. Dashboard에서 먼저 채널을 추가해주세요.")
+        return {"channels": [], "debug_info": debug_info}
+
+    debug_info["channel_found"] = True
 
     # Get videos for the channel from database using internal ID
     videos = db.get_videos_by_channel(channel.id, limit=100)
+    debug_info["videos_count"] = len(videos)
 
     if not videos:
-        return []
+        debug_info["errors"].append("이 채널의 영상 데이터가 없습니다. Dashboard에서 '영상 가져오기'를 먼저 실행해주세요.")
+        return {"channels": [], "debug_info": debug_info}
 
     # Get latest snapshots for videos to get view counts
     videos_with_views = []
@@ -53,12 +66,16 @@ def find_similar_channels(
                 'view_count': snapshot.view_count
             })
 
+    debug_info["videos_with_snapshots"] = len(videos_with_views)
+
     if not videos_with_views:
-        return []
+        debug_info["errors"].append("영상의 조회수 데이터(스냅샷)가 없습니다. Dashboard에서 채널 정보를 새로고침해주세요.")
+        return {"channels": [], "debug_info": debug_info}
 
     # Sort by view count and get top N
     videos_with_views.sort(key=lambda x: x['view_count'], reverse=True)
     top_videos = videos_with_views[:top_videos_count]
+    debug_info["top_videos_analyzed"] = len(top_videos)
 
     # Track which channels appear in related videos
     channel_counter = Counter()
@@ -90,8 +107,17 @@ def find_similar_channels(
 
         except Exception as e:
             # Continue if a video fails
-            print(f"Warning: Failed to get related videos for {video.youtube_video_id}: {e}")
+            error_msg = f"영상 {video.youtube_video_id}의 관련 영상 검색 실패: {str(e)}"
+            debug_info["errors"].append(error_msg)
+            print(f"Warning: {error_msg}")
             continue
+
+    debug_info["total_related_videos"] = total_related_videos
+    debug_info["unique_channels_found"] = len(channel_counter)
+
+    if not channel_counter:
+        debug_info["errors"].append(f"관련 영상에서 다른 채널을 찾지 못했습니다. (분석한 관련 영상: {total_related_videos}개)")
+        return {"channels": [], "debug_info": debug_info}
 
     # Filter channels by minimum appearances
     similar_channels = []
@@ -124,16 +150,23 @@ def find_similar_channels(
 
         except Exception as e:
             # Skip if channel info fetch fails
-            print(f"Warning: Failed to get info for channel {ch_id}: {e}")
+            error_msg = f"채널 {ch_id} 정보 가져오기 실패: {str(e)}"
+            debug_info["errors"].append(error_msg)
+            print(f"Warning: {error_msg}")
             continue
 
-    return similar_channels
+    debug_info["channels_after_filter"] = len(similar_channels)
+
+    if not similar_channels:
+        debug_info["errors"].append(f"최소 출현 횟수({min_appearances}회) 조건을 만족하는 채널이 없습니다. 유니크 채널 수: {len(channel_counter)}개")
+
+    return {"channels": similar_channels, "debug_info": debug_info}
 
 
 def find_similar_channels_simple(
     channel_id: str,
     max_similar: int = 10
-) -> List[Dict[str, Any]]:
+) -> Dict[str, Any]:
     """
     Simplified version with default parameters
 
@@ -142,13 +175,14 @@ def find_similar_channels_simple(
         max_similar: Maximum number of similar channels to return
 
     Returns:
-        List of similar channels (up to max_similar)
+        Dict with channels list and debug_info (up to max_similar channels)
     """
-    similar = find_similar_channels(
+    result = find_similar_channels(
         channel_id=channel_id,
         top_videos_count=10,
         related_per_video=20,
         min_appearances=2
     )
 
-    return similar[:max_similar]
+    result["channels"] = result["channels"][:max_similar]
+    return result

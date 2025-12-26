@@ -322,13 +322,13 @@ with col1:
 if st.session_state.similar_channels_loading:
     with st.spinner("유사 채널을 찾는 중... (시간이 걸릴 수 있습니다)"):
         try:
-            similar_channels = similar.find_similar_channels(
+            result = similar.find_similar_channels(
                 channel_id=selected_channel.youtube_channel_id,
                 top_videos_count=top_videos_count,
                 related_per_video=related_per_video,
                 min_appearances=2
             )
-            st.session_state.similar_channels_data = similar_channels
+            st.session_state.similar_channels_data = result
             st.session_state.similar_channels_loading = False
             st.rerun()
         except Exception as e:
@@ -337,10 +337,37 @@ if st.session_state.similar_channels_loading:
 
 # Display results
 if st.session_state.similar_channels_data is not None:
-    similar_channels = st.session_state.similar_channels_data
+    result = st.session_state.similar_channels_data
+    similar_channels = result.get("channels", [])
+    debug_info = result.get("debug_info", {})
+
+    # Show debug information
+    if debug_info:
+        with st.expander("🔍 분석 상세 정보", expanded=not similar_channels):
+            col1, col2, col3 = st.columns(3)
+
+            with col1:
+                st.metric("채널 발견", "✅" if debug_info.get("channel_found") else "❌")
+                st.metric("영상 수", debug_info.get("videos_count", 0))
+                st.metric("스냅샷 있는 영상", debug_info.get("videos_with_snapshots", 0))
+
+            with col2:
+                st.metric("분석한 인기 영상", debug_info.get("top_videos_analyzed", 0))
+                st.metric("수집한 관련 영상", debug_info.get("total_related_videos", 0))
+
+            with col3:
+                st.metric("발견한 유니크 채널", debug_info.get("unique_channels_found", 0))
+                st.metric("필터 후 채널", debug_info.get("channels_after_filter", 0))
+
+            # Show errors
+            if debug_info.get("errors"):
+                st.markdown("**⚠️ 문제점:**")
+                for error in debug_info["errors"]:
+                    st.warning(error)
 
     if not similar_channels:
-        st.info("유사 채널을 찾지 못했습니다. 영상 데이터가 부족하거나 관련 채널이 없을 수 있습니다.")
+        if not debug_info.get("errors"):
+            st.info("유사 채널을 찾지 못했습니다. 영상 데이터가 부족하거나 관련 채널이 없을 수 있습니다.")
     else:
         st.success(f"✅ {len(similar_channels)}개의 유사 채널을 발견했습니다!")
 
