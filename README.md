@@ -67,9 +67,29 @@ pip install -r requirements.txt
 
 `.env` 파일을 프로젝트 루트에 생성:
 
+#### Option 1: 단일 API 키 (기본)
+
 ```bash
 YOUTUBE_API_KEY=your_api_key_here
 ```
+
+#### Option 2: 여러 API 키 (권장 🌟)
+
+여러 개의 API 키를 사용하면 하나의 키가 쿼터 초과 시 자동으로 다음 키로 전환됩니다!
+
+```bash
+YOUTUBE_API_KEYS=key1,key2,key3,key4,key5
+```
+
+**예시:**
+```bash
+YOUTUBE_API_KEYS=AIzaSyXXXXXXXXXXXXXXX1,AIzaSyXXXXXXXXXXXXXXX2,AIzaSyXXXXXXXXXXXXXXX3
+```
+
+**장점:**
+- ✅ 하루 쿼터를 키 개수만큼 늘릴 수 있음 (키 3개 = 30,000 유닛)
+- ✅ 자동 키 전환으로 중단 없이 계속 사용 가능
+- ✅ 키 상태를 터미널에서 실시간 확인
 
 **중요:** `.env` 파일에 실제 API 키를 입력하세요.
 
@@ -176,14 +196,35 @@ ultracreator/
 ```
 YouTube API key not found
 ```
-→ `.env` 파일에 `YOUTUBE_API_KEY`가 설정되었는지 확인
+→ `.env` 파일에 `YOUTUBE_API_KEY` 또는 `YOUTUBE_API_KEYS`가 설정되었는지 확인
 
-### 쿼터 초과
+### 쿼터 초과 🔥
+
 ```
 quotaExceeded
 ```
-→ YouTube API는 일일 쿼터 제한이 있습니다 (기본 10,000 유닛)
-→ 다음날까지 대기하거나 Google Cloud에서 쿼터 증가 요청
+
+YouTube API는 **일일 쿼터 제한**이 있습니다 (기본 10,000 유닛/일)
+
+#### 해결책:
+
+**1. 여러 API 키 사용 (권장 ⭐)**
+```bash
+# .env 파일에 여러 키 추가
+YOUTUBE_API_KEYS=key1,key2,key3,key4,key5
+```
+- 키가 5개라면 → **50,000 유닛/일** 사용 가능!
+- 하나의 키가 초과되면 자동으로 다음 키로 전환
+- 터미널에서 전환 상태 실시간 확인:
+  ```
+  ⚠️  API Key #1 quota exceeded. Switching to next key...
+  📍 Switched from Key #1 to Key #2
+  ✅ Available keys: 4/5
+  ```
+
+**2. 다음날까지 대기**
+
+**3. Google Cloud에서 쿼터 증가 요청**
 
 ### 채널을 찾을 수 없음
 ```

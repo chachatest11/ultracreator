@@ -1,22 +1,139 @@
 """
-YouTube Data API v3 client
+YouTube Data API v3 client with multi-key rotation support
 """
 import os
 import re
+import json
 from typing import List, Dict, Any, Optional, Tuple
 from datetime import datetime
+from pathlib import Path
 import requests
 from dotenv import load_dotenv
 
 load_dotenv()
 
-API_KEY = os.getenv("YOUTUBE_API_KEY", "")
 BASE_URL = "https://www.googleapis.com/youtube/v3"
+KEY_STATE_FILE = ".api_key_state.json"
 
 
 class YouTubeAPIError(Exception):
     """YouTube API error"""
     pass
+
+
+class APIKeyManager:
+    """Manages multiple YouTube API keys with automatic rotation"""
+
+    def __init__(self):
+        self.api_keys = self._load_api_keys()
+        self.current_index = self._load_current_index()
+        self.exhausted_keys = set()
+
+    def _load_api_keys(self) -> List[str]:
+        """Load API keys from environment variable"""
+        # Support both single key and multiple keys
+        single_key = os.getenv("YOUTUBE_API_KEY", "")
+        multi_keys = os.getenv("YOUTUBE_API_KEYS", "")
+
+        if multi_keys:
+            # Split by comma and strip whitespace
+            keys = [key.strip() for key in multi_keys.split(",") if key.strip()]
+        elif single_key:
+            keys = [single_key]
+        else:
+            keys = []
+
+        return keys
+
+    def _load_current_index(self) -> int:
+        """Load current key index from state file"""
+        try:
+            if Path(KEY_STATE_FILE).exists():
+                with open(KEY_STATE_FILE, 'r') as f:
+                    state = json.load(f)
+                    return state.get('current_index', 0)
+        except:
+            pass
+        return 0
+
+    def _save_current_index(self):
+        """Save current key index to state file"""
+        try:
+            with open(KEY_STATE_FILE, 'w') as f:
+                json.dump({'current_index': self.current_index}, f)
+        except:
+            pass
+
+    def get_current_key(self) -> str:
+        """Get current API key"""
+        if not self.api_keys:
+            raise YouTubeAPIError(
+                "No YouTube API keys found. Please set YOUTUBE_API_KEY or YOUTUBE_API_KEYS in .env file"
+            )
+
+        # If all keys are exhausted, reset and try again
+        if len(self.exhausted_keys) >= len(self.api_keys):
+            raise YouTubeAPIError(
+                f"All {len(self.api_keys)} API keys have exceeded their quota. "
+                "Please wait until tomorrow or add more API keys."
+            )
+
+        # Find next non-exhausted key
+        attempts = 0
+        while attempts < len(self.api_keys):
+            if self.current_index not in self.exhausted_keys:
+                return self.api_keys[self.current_index]
+
+            self.current_index = (self.current_index + 1) % len(self.api_keys)
+            attempts += 1
+
+        raise YouTubeAPIError("No available API keys")
+
+    def rotate_key(self, reason: str = "quota_exceeded"):
+        """Rotate to next API key"""
+        if not self.api_keys:
+            return
+
+        # Mark current key as exhausted if quota exceeded
+        if reason == "quota_exceeded":
+            self.exhausted_keys.add(self.current_index)
+            print(f"⚠️  API Key #{self.current_index + 1} quota exceeded. Switching to next key...")
+
+        # Move to next key
+        old_index = self.current_index
+        self.current_index = (self.current_index + 1) % len(self.api_keys)
+        self._save_current_index()
+
+        # Print status
+        available_keys = len(self.api_keys) - len(self.exhausted_keys)
+        print(f"📍 Switched from Key #{old_index + 1} to Key #{self.current_index + 1}")
+        print(f"✅ Available keys: {available_keys}/{len(self.api_keys)}")
+
+    def is_quota_error(self, response_data: dict) -> bool:
+        """Check if response contains quota exceeded error"""
+        if "error" in response_data:
+            error = response_data["error"]
+            if isinstance(error, dict):
+                errors = error.get("errors", [])
+                for err in errors:
+                    if err.get("reason") == "quotaExceeded":
+                        return True
+                # Also check error code
+                if error.get("code") == 403 and "quota" in str(error).lower():
+                    return True
+        return False
+
+    def get_key_count(self) -> int:
+        """Get total number of API keys"""
+        return len(self.api_keys)
+
+    def get_available_key_count(self) -> int:
+        """Get number of available (not exhausted) keys"""
+        return len(self.api_keys) - len(self.exhausted_keys)
+
+
+# Global API key manager instance
+_key_manager = APIKeyManager()
 
 
 def parse_duration(duration_str: str) -> int:
@@ -43,12 +160,56 @@ def parse_duration(duration_str: str) -> int:
     return hours * 3600 + minutes * 60 + seconds
 
 
-def check_api_key():
-    """Check if API key is configured"""
-    if not API_KEY:
-        raise YouTubeAPIError(
-            "YouTube API key not found. Please set YOUTUBE_API_KEY in .env file"
-        )
+def _make_api_request(url: str, params: dict, max_retries: int = None) -> dict:
+    """
+    Make API request with automatic key rotation on quota exceeded
+
+    Args:
+        url: API endpoint URL
+        params: Request parameters (without 'key')
+        max_retries: Maximum number of key rotations (default: number of available keys)
+
+    Returns:
+        API response data
+    """
+    if max_retries is None:
+        max_retries = _key_manager.get_key_count()
+
+    attempt = 0
+    while attempt < max_retries:
+        try:
+            # Get current API key
+            api_key = _key_manager.get_current_key()
+
+            # Add key to params
+            request_params = {**params, "key": api_key}
+
+            # Make request
+            response = requests.get(url, params=request_params, timeout=10)
+
+            # Parse response
+            data = response.json()
+
+            # Check for quota error
+            if _key_manager.is_quota_error(data):
+                _key_manager.rotate_key("quota_exceeded")
+                attempt += 1
+                continue
+
+            # Raise for other HTTP errors
+            response.raise_for_status()
+
+            return data
+
+        except requests.exceptions.RequestException as e:
+            # Don't retry on network errors
+            raise YouTubeAPIError(f"Network error: {e}")
+
+    # All keys exhausted
+    raise YouTubeAPIError(
+        f"All API keys have exceeded their quota. "
+        f"Tried {max_retries} keys. Please wait until tomorrow or add more API keys."
+    )
 
 
 def get_channel_info(channel_id: str) -> Dict[str, Any]:
@@ -56,19 +217,14 @@ def get_channel_info(channel_id: str) -> Dict[str, Any]:
     Get channel information
     Returns: dict with channel data
     """
-    check_api_key()
-
     url = f"{BASE_URL}/channels"
     params = {
-        "key": API_KEY,
         "id": channel_id,
         "part": "snippet,statistics,contentDetails"
     }
 
     try:
-        response = requests.get(url, params=params, timeout=10)
-        response.raise_for_status()
-        data = response.json()
+        data = _make_api_request(url, params)
 
         if not data.get("items"):
             raise YouTubeAPIError(f"Channel not found: {channel_id}")
@@ -89,8 +245,6 @@ def get_channel_info(channel_id: str) -> Dict[str, Any]:
             "uploads_playlist_id": content_details.get("relatedPlaylists", {}).get("uploads", "")
         }
 
-    except requests.exceptions.RequestException as e:
-        raise YouTubeAPIError(f"Network error: {e}")
     except (KeyError, ValueError) as e:
         raise YouTubeAPIError(f"Failed to parse channel data: {e}")
 
@@ -99,22 +253,17 @@ def get_channel_by_handle(handle: str) -> Dict[str, Any]:
     """
     Get channel information by handle (@username)
     """
-    check_api_key()
-
     # Remove @ if present
     handle = handle.lstrip("@")
 
     url = f"{BASE_URL}/channels"
     params = {
-        "key": API_KEY,
         "forHandle": handle,
         "part": "snippet,statistics,contentDetails"
     }
 
     try:
-        response = requests.get(url, params=params, timeout=10)
-        response.raise_for_status()
-        data = response.json()
+        data = _make_api_request(url, params)
 
         if not data.get("items"):
             raise YouTubeAPIError(f"Channel not found for handle: @{handle}")
@@ -135,8 +284,6 @@ def get_channel_by_handle(handle: str) -> Dict[str, Any]:
             "uploads_playlist_id": content_details.get("relatedPlaylists", {}).get("uploads", "")
         }
 
-    except requests.exceptions.RequestException as e:
-        raise YouTubeAPIError(f"Network error: {e}")
     except (KeyError, ValueError) as e:
         raise YouTubeAPIError(f"Failed to parse channel data: {e}")
 
@@ -146,8 +293,6 @@ def get_playlist_videos(playlist_id: str, max_results: int = 50) -> List[str]:
     Get video IDs from playlist
     Returns: list of video IDs
     """
-    check_api_key()
-
     video_ids = []
     next_page_token = None
 
@@ -156,16 +301,15 @@ def get_playlist_videos(playlist_id: str, max_results: int = 50) -> List[str]:
     try:
         while len(video_ids) < max_results:
             params = {
-                "key": API_KEY,
                 "playlistId": playlist_id,
                 "part": "contentDetails",
-                "maxResults": min(50, max_results - len(video_ids)),
-                "pageToken": next_page_token
+                "maxResults": min(50, max_results - len(video_ids))
             }
 
-            response = requests.get(url, params=params, timeout=10)
-            response.raise_for_status()
-            data = response.json()
+            if next_page_token:
+                params["pageToken"] = next_page_token
+
+            data = _make_api_request(url, params)
 
             for item in data.get("items", []):
                 video_id = item.get("contentDetails", {}).get("videoId")
@@ -178,8 +322,6 @@ def get_playlist_videos(playlist_id: str, max_results: int = 50) -> List[str]:
 
         return video_ids
 
-    except requests.exceptions.RequestException as e:
-        raise YouTubeAPIError(f"Network error: {e}")
     except (KeyError, ValueError) as e:
         raise YouTubeAPIError(f"Failed to parse playlist data: {e}")
 
@@ -189,8 +331,6 @@ def get_videos_info(video_ids: List[str]) -> List[Dict[str, Any]]:
     Get detailed information for multiple videos
     Returns: list of video data dicts
     """
-    check_api_key()
-
     if not video_ids:
         return []
 
@@ -202,15 +342,12 @@ def get_videos_info(video_ids: List[str]) -> List[Dict[str, Any]]:
         batch_ids = video_ids[i:i + 50]
 
         params = {
-            "key": API_KEY,
             "id": ",".join(batch_ids),
             "part": "snippet,contentDetails,statistics"
         }
 
         try:
-            response = requests.get(url, params=params, timeout=10)
-            response.raise_for_status()
-            data = response.json()
+            data = _make_api_request(url, params)
 
             for item in data.get("items", []):
                 snippet = item.get("snippet", {})
@@ -231,8 +368,6 @@ def get_videos_info(video_ids: List[str]) -> List[Dict[str, Any]]:
                     "comment_count": int(statistics.get("commentCount", 0))
                 })
 
-        except requests.exceptions.RequestException as e:
-            raise YouTubeAPIError(f"Network error: {e}")
         except (KeyError, ValueError) as e:
             raise YouTubeAPIError(f"Failed to parse video data: {e}")
 
@@ -250,8 +385,6 @@ def search_videos(keyword: str, max_results: int = 200,
         max_results: maximum number of results (up to 500)
         order: relevance, date, viewCount, rating
     """
-    check_api_key()
-
     video_ids = []
     next_page_token = None
 
@@ -260,18 +393,17 @@ def search_videos(keyword: str, max_results: int = 200,
     try:
         while len(video_ids) < max_results:
             params = {
-                "key": API_KEY,
                 "q": keyword,
                 "part": "id",
                 "type": "video",
                 "maxResults": min(50, max_results - len(video_ids)),
-                "order": order,
-                "pageToken": next_page_token
+                "order": order
             }
 
-            response = requests.get(url, params=params, timeout=10)
-            response.raise_for_status()
-            data = response.json()
+            if next_page_token:
+                params["pageToken"] = next_page_token
+
+            data = _make_api_request(url, params)
 
             for item in data.get("items", []):
                 video_id = item.get("id", {}).get("videoId")
@@ -284,8 +416,6 @@ def search_videos(keyword: str, max_results: int = 200,
 
         return video_ids
 
-    except requests.exceptions.RequestException as e:
-        raise YouTubeAPIError(f"Network error: {e}")
     except (KeyError, ValueError) as e:
         raise YouTubeAPIError(f"Failed to parse search results: {e}")
 
