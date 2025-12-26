@@ -292,7 +292,7 @@ if 'similar_channels_data' not in st.session_state:
 if 'similar_channels_loading' not in st.session_state:
     st.session_state.similar_channels_loading = False
 
-col1, col2, col3 = st.columns([2, 2, 4])
+col1, col2, col3 = st.columns([2, 2, 2])
 
 with col1:
     top_videos_count = st.number_input(
@@ -312,6 +312,15 @@ with col2:
         help="각 영상의 키워드로 검색할 결과 수"
     )
 
+with col3:
+    min_appearances = st.number_input(
+        "최소 출현 횟수",
+        min_value=1,
+        max_value=10,
+        value=2,
+        help="채널이 몇 번 이상 출현해야 결과에 포함할지 설정 (높을수록 신뢰도 높음)"
+    )
+
 col1, col2 = st.columns([1, 5])
 
 with col1:
@@ -326,7 +335,7 @@ if st.session_state.similar_channels_loading:
                 channel_id=selected_channel.youtube_channel_id,
                 top_videos_count=top_videos_count,
                 related_per_video=related_per_video,
-                min_appearances=2
+                min_appearances=min_appearances
             )
             st.session_state.similar_channels_data = result
             st.session_state.similar_channels_loading = False
