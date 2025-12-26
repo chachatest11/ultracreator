@@ -139,55 +139,155 @@ with col2:
 
 # Recent videos
 st.markdown("---")
-st.subheader("🎬 최근 영상 (50개)")
+st.subheader("🎬 최근 영상")
 
-videos = db.get_videos_by_channel(selected_channel.id, limit=50)
+# Video count selector
+col1, col2 = st.columns([2, 6])
+with col1:
+    video_limit = st.number_input(
+        "표시할 영상 수",
+        min_value=10,
+        max_value=200,
+        value=50,
+        step=10,
+        help="최근 영상을 몇 개까지 표시할지 설정합니다"
+    )
+
+videos = db.get_videos_by_channel(selected_channel.id, limit=video_limit)
 
 if not videos:
     st.info("이 채널의 영상 데이터가 없습니다.")
 else:
-    video_data = []
+    # Initialize session state for selected video
+    if 'selected_video_id' not in st.session_state:
+        st.session_state.selected_video_id = None
 
-    for video in videos:
-        snapshot = db.get_latest_video_snapshot(video.id)
+    # Display videos in grid with thumbnails
+    st.markdown(f"**총 {len(videos)}개의 영상**")
 
-        video_data.append({
-            "제목": video.title,
-            "게시일": video.published_at.strftime("%Y-%m-%d %H:%M") if video.published_at else "N/A",
-            "길이 (초)": video.duration_seconds,
-            "유형": "Shorts" if video.duration_seconds <= 60 else "일반",
-            "조회수": snapshot.view_count if snapshot else 0,
-            "좋아요": snapshot.like_count if snapshot else 0,
-            "댓글": snapshot.comment_count if snapshot else 0,
-            "참여율": (
-                f"{((snapshot.like_count + snapshot.comment_count) / snapshot.view_count * 100):.2f}%"
-                if snapshot and snapshot.view_count > 0 else "0.00%"
-            )
-        })
+    # Create grid layout (3 columns)
+    cols_per_row = 3
+    for i in range(0, len(videos), cols_per_row):
+        cols = st.columns(cols_per_row)
 
-    df = pd.DataFrame(video_data)
+        for j in range(cols_per_row):
+            idx = i + j
+            if idx < len(videos):
+                video = videos[idx]
+                snapshot = db.get_latest_video_snapshot(video.id)
 
-    st.dataframe(
-        df,
-        use_container_width=True,
-        hide_index=True,
-        column_config={
-            "조회수": st.column_config.NumberColumn(format="%d"),
-            "좋아요": st.column_config.NumberColumn(format="%d"),
-            "댓글": st.column_config.NumberColumn(format="%d")
-        }
-    )
+                with cols[j]:
+                    # Thumbnail
+                    thumbnail_url = video.thumbnail_url or f"https://img.youtube.com/vi/{video.youtube_video_id}/hqdefault.jpg"
+
+                    # Use button with image for clickable thumbnail
+                    if st.button(
+                        "▶️ 재생",
+                        key=f"play_{video.youtube_video_id}",
+                        use_container_width=True
+                    ):
+                        st.session_state.selected_video_id = video.youtube_video_id
+
+                    st.image(thumbnail_url, use_column_width=True)
+
+                    # Video info
+                    st.markdown(f"**{video.title[:50]}{'...' if len(video.title) > 50 else ''}**")
+
+                    # Stats
+                    video_type = "🩳 Shorts" if video.duration_seconds <= 60 else "🎥 일반"
+                    st.caption(f"{video_type} | {video.duration_seconds}초")
+
+                    if snapshot:
+                        col_a, col_b = st.columns(2)
+                        with col_a:
+                            st.metric("조회수", f"{snapshot.view_count:,}", label_visibility="collapsed")
+                            st.caption("👁️ 조회수")
+                        with col_b:
+                            st.metric("좋아요", f"{snapshot.like_count:,}", label_visibility="collapsed")
+                            st.caption("👍 좋아요")
+
+                    st.caption(f"📅 {video.published_at.strftime('%Y-%m-%d') if video.published_at else 'N/A'}")
+                    st.markdown("---")
+
+    # Video player (appears when thumbnail is clicked)
+    if st.session_state.selected_video_id:
+        st.markdown("### 🎬 영상 재생")
+
+        # Find selected video details
+        selected_video = next((v for v in videos if v.youtube_video_id == st.session_state.selected_video_id), None)
+
+        if selected_video:
+            st.markdown(f"**{selected_video.title}**")
+
+            # YouTube video player
+            video_url = f"https://www.youtube.com/watch?v={st.session_state.selected_video_id}"
+            st.video(video_url)
+
+            # Close button
+            if st.button("❌ 닫기", key="close_video"):
+                st.session_state.selected_video_id = None
+                st.rerun()
+
+            st.markdown("---")
+
+    # Summary table view (collapsible)
+    with st.expander("📋 전체 영상 목록 (테이블 형식)"):
+        video_data = []
+
+        for video in videos:
+            snapshot = db.get_latest_video_snapshot(video.id)
+
+            video_data.append({
+                "제목": video.title,
+                "게시일": video.published_at.strftime("%Y-%m-%d %H:%M") if video.published_at else "N/A",
+                "길이 (초)": video.duration_seconds,
+                "유형": "Shorts" if video.duration_seconds <= 60 else "일반",
+                "조회수": snapshot.view_count if snapshot else 0,
+                "좋아요": snapshot.like_count if snapshot else 0,
+                "댓글": snapshot.comment_count if snapshot else 0,
+                "참여율": (
+                    f"{((snapshot.like_count + snapshot.comment_count) / snapshot.view_count * 100):.2f}%"
+                    if snapshot and snapshot.view_count > 0 else "0.00%"
+                )
+            })
+
+        df = pd.DataFrame(video_data)
+
+        st.dataframe(
+            df,
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "조회수": st.column_config.NumberColumn(format="%d"),
+                "좋아요": st.column_config.NumberColumn(format="%d"),
+                "댓글": st.column_config.NumberColumn(format="%d")
+            }
+        )
 
     # Visualization
     st.markdown("---")
     st.subheader("📊 조회수 분포")
+
+    # Create dataframe for visualization
+    viz_data = []
+    for video in videos:
+        snapshot = db.get_latest_video_snapshot(video.id)
+        viz_data.append({
+            "제목": video.title,
+            "게시일": video.published_at.strftime("%Y-%m-%d %H:%M") if video.published_at else "N/A",
+            "게시일_dt": video.published_at if video.published_at else None,
+            "유형": "Shorts" if video.duration_seconds <= 60 else "일반",
+            "조회수": snapshot.view_count if snapshot else 0,
+        })
+
+    df_viz = pd.DataFrame(viz_data)
 
     col1, col2 = st.columns(2)
 
     with col1:
         # View count distribution
         fig = px.histogram(
-            df,
+            df_viz,
             x="조회수",
             nbins=20,
             title="조회수 분포",
@@ -197,7 +297,7 @@ else:
 
     with col2:
         # Views by video type
-        type_views = df.groupby("유형")["조회수"].sum().reset_index()
+        type_views = df_viz.groupby("유형")["조회수"].sum().reset_index()
         fig = px.pie(
             type_views,
             values="조회수",
@@ -209,8 +309,9 @@ else:
     # Timeline chart
     st.markdown("#### 시간별 조회수 추이")
 
-    df['게시일_dt'] = pd.to_datetime(df['게시일'])
-    df_sorted = df.sort_values('게시일_dt')
+    # Filter out None values
+    df_viz_filtered = df_viz[df_viz['게시일_dt'].notna()].copy()
+    df_sorted = df_viz_filtered.sort_values('게시일_dt')
 
     fig = go.Figure()
 
