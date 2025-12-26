@@ -18,7 +18,7 @@ def find_similar_channels(
     Find similar channels by analyzing related videos
 
     Args:
-        channel_id: Target channel ID to find similar channels for
+        channel_id: Target YouTube channel ID to find similar channels for
         top_videos_count: Number of top videos to analyze (default: 10)
         related_per_video: Number of related videos to fetch per video (default: 20)
         min_appearances: Minimum number of times a channel must appear (default: 2)
@@ -31,25 +31,45 @@ def find_similar_channels(
         - appearance_count: How many times this channel appeared in related videos
         - confidence_score: Score from 0-100 indicating similarity strength
     """
-    # Get videos for the channel from database
-    videos = db.get_channel_videos(channel_id)
+    # Get channel from database by YouTube channel ID
+    channel = db.get_channel_by_youtube_id(channel_id)
+
+    if not channel:
+        return []
+
+    # Get videos for the channel from database using internal ID
+    videos = db.get_videos_by_channel(channel.id, limit=100)
 
     if not videos:
         return []
 
+    # Get latest snapshots for videos to get view counts
+    videos_with_views = []
+    for video in videos:
+        snapshot = db.get_latest_video_snapshot(video.id)
+        if snapshot:
+            videos_with_views.append({
+                'video': video,
+                'view_count': snapshot.view_count
+            })
+
+    if not videos_with_views:
+        return []
+
     # Sort by view count and get top N
-    videos.sort(key=lambda x: x.view_count, reverse=True)
-    top_videos = videos[:top_videos_count]
+    videos_with_views.sort(key=lambda x: x['view_count'], reverse=True)
+    top_videos = videos_with_views[:top_videos_count]
 
     # Track which channels appear in related videos
     channel_counter = Counter()
     total_related_videos = 0
 
     # For each top video, find related videos
-    for video in top_videos:
+    for item in top_videos:
+        video = item['video']
         try:
             related_video_ids = youtube_api.search_related_videos(
-                video.video_id,
+                video.youtube_video_id,
                 max_results=related_per_video
             )
 
@@ -70,7 +90,7 @@ def find_similar_channels(
 
         except Exception as e:
             # Continue if a video fails
-            print(f"Warning: Failed to get related videos for {video.video_id}: {e}")
+            print(f"Warning: Failed to get related videos for {video.youtube_video_id}: {e}")
             continue
 
     # Filter channels by minimum appearances
