@@ -33,10 +33,10 @@ class NicheExplorer:
         n_clusters: int = 8,
         use_cache: bool = True,
         cache_hours: int = 24
-    ) -> Optional[int]:
+    ) -> Optional[Dict[str, Any]]:
         """
         Explore niche by keyword
-        Returns: niche_run_id if successful, None otherwise
+        Returns: dict with niche_run_id and all_videos if successful, None otherwise
         """
         params = {
             "max_videos": max_videos,
@@ -47,7 +47,8 @@ class NicheExplorer:
         if use_cache:
             cached_run = db.get_recent_niche_run(keyword, params, cache_hours)
             if cached_run:
-                return cached_run.id
+                # For cached results, we don't have all_videos stored
+                return {"niche_run_id": cached_run.id, "all_videos": None, "from_cache": True}
 
         # Search videos
         video_ids = youtube_api.search_videos(keyword, max_videos)
@@ -69,6 +70,10 @@ class NicheExplorer:
         # Cluster
         kmeans = KMeans(n_clusters=min(n_clusters, len(videos_data)), random_state=42)
         labels = kmeans.fit_predict(embeddings)
+
+        # Add cluster assignment to each video
+        for i, video in enumerate(videos_data):
+            video['cluster_index'] = int(labels[i])
 
         # Create niche run
         niche_run = NicheRun(
@@ -125,7 +130,12 @@ class NicheExplorer:
             )
             db.insert_niche_cluster(cluster)
 
-        return niche_run_id
+        # Return niche_run_id and all videos data
+        return {
+            "niche_run_id": niche_run_id,
+            "all_videos": videos_data,
+            "from_cache": False
+        }
 
     def _generate_cluster_label(self, texts: List[str]) -> str:
         """Generate cluster label using TF-IDF"""

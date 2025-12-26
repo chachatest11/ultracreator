@@ -14,6 +14,8 @@ st.markdown("키워드 기반 니치 탐색 및 클러스터 분석")
 # Initialize session state
 if 'niche_run_id' not in st.session_state:
     st.session_state.niche_run_id = None
+if 'all_videos' not in st.session_state:
+    st.session_state.all_videos = None
 
 # Input section
 st.subheader("🔍 탐색 설정")
@@ -79,7 +81,7 @@ if st.button("🚀 탐색 시작", type="primary", use_container_width=True):
                 progress_placeholder.info("🔬 클러스터링 분석 중...")
                 progress_bar.progress(0.8)
 
-                niche_run_id = explorer.explore(
+                result = explorer.explore(
                     keyword=keyword,
                     max_videos=max_videos,
                     n_clusters=n_clusters,
@@ -90,9 +92,14 @@ if st.button("🚀 탐색 시작", type="primary", use_container_width=True):
                 progress_placeholder.empty()
                 progress_bar.empty()
 
-                if niche_run_id:
-                    st.session_state.niche_run_id = niche_run_id
-                    st.success(f"✓ 탐색 완료! {n_clusters}개의 클러스터를 발견했습니다.")
+                if result:
+                    st.session_state.niche_run_id = result['niche_run_id']
+                    st.session_state.all_videos = result.get('all_videos')
+
+                    if result.get('from_cache'):
+                        st.info("✓ 캐시된 결과를 불러왔습니다. (전체 영상 목록은 캐시되지 않음)")
+                    else:
+                        st.success(f"✓ 탐색 완료! {n_clusters}개의 클러스터를 발견했습니다.")
                     st.rerun()
                 else:
                     st.error("탐색에 실패했습니다. 다른 키워드로 시도해보세요.")
@@ -368,6 +375,109 @@ if st.session_state.niche_run_id:
             )
         else:
             st.info("주요 채널 정보가 없습니다.")
+
+        # All Videos Section
+        st.markdown("---")
+        st.markdown("---")
+        st.subheader("📹 수집된 전체 영상 목록")
+
+        if st.session_state.all_videos:
+            all_videos = st.session_state.all_videos
+
+            st.markdown(f"**총 {len(all_videos)}개의 영상이 수집되었습니다.**")
+
+            # Filter options
+            col1, col2, col3 = st.columns([2, 2, 2])
+
+            with col1:
+                filter_cluster = st.selectbox(
+                    "클러스터 필터",
+                    ["전체"] + [f"#{i}" for i in range(len(clusters))],
+                    help="특정 클러스터의 영상만 보기"
+                )
+
+            with col2:
+                filter_type = st.selectbox(
+                    "영상 유형",
+                    ["전체", "Shorts만 (≤60초)", "일반 영상만 (>60초)"]
+                )
+
+            with col3:
+                sort_videos_by = st.selectbox(
+                    "정렬",
+                    ["조회수 높은순", "조회수 낮은순", "최신순", "오래된순"]
+                )
+
+            # Build video table data
+            videos_table = []
+            for video in all_videos:
+                # Apply cluster filter
+                if filter_cluster != "전체":
+                    cluster_num = int(filter_cluster.lstrip("#"))
+                    if video.get('cluster_index', -1) != cluster_num:
+                        continue
+
+                # Apply type filter
+                is_short = video['duration_seconds'] <= 60
+                if filter_type == "Shorts만 (≤60초)" and not is_short:
+                    continue
+                if filter_type == "일반 영상만 (>60초)" and is_short:
+                    continue
+
+                videos_table.append({
+                    "클러스터": f"#{video.get('cluster_index', '?')}",
+                    "제목": video['title'][:60] + "..." if len(video['title']) > 60 else video['title'],
+                    "조회수": video['view_count'],
+                    "좋아요": video.get('like_count', 0),
+                    "댓글": video.get('comment_count', 0),
+                    "길이 (초)": video['duration_seconds'],
+                    "유형": "Shorts" if is_short else "일반",
+                    "게시일": video.get('published_at', '')[:10] if video.get('published_at') else "N/A",
+                    "YouTube 링크": f"https://youtube.com/watch?v={video['video_id']}"
+                })
+
+            if videos_table:
+                videos_df = pd.DataFrame(videos_table)
+
+                # Sort
+                if sort_videos_by == "조회수 높은순":
+                    videos_df = videos_df.sort_values("조회수", ascending=False)
+                elif sort_videos_by == "조회수 낮은순":
+                    videos_df = videos_df.sort_values("조회수", ascending=True)
+                elif sort_videos_by == "최신순":
+                    videos_df = videos_df.sort_values("게시일", ascending=False)
+                elif sort_videos_by == "오래된순":
+                    videos_df = videos_df.sort_values("게시일", ascending=True)
+
+                st.markdown(f"**필터 결과: {len(videos_df)}개 영상**")
+
+                st.dataframe(
+                    videos_df,
+                    use_container_width=True,
+                    hide_index=True,
+                    column_config={
+                        "조회수": st.column_config.NumberColumn(format="%d"),
+                        "좋아요": st.column_config.NumberColumn(format="%d"),
+                        "댓글": st.column_config.NumberColumn(format="%d"),
+                        "YouTube 링크": st.column_config.LinkColumn("링크")
+                    },
+                    height=600
+                )
+
+                # Download button
+                csv = videos_df.to_csv(index=False, encoding='utf-8-sig')
+                st.download_button(
+                    label="📥 CSV로 다운로드",
+                    data=csv,
+                    file_name=f"niche_videos_{len(videos_df)}.csv",
+                    mime="text/csv",
+                )
+
+            else:
+                st.info("필터 조건에 맞는 영상이 없습니다.")
+
+        else:
+            st.info("전체 영상 목록은 캐시된 결과에서는 제공되지 않습니다. 새로 탐색을 실행해주세요.")
 
     except Exception as e:
         st.error(f"결과를 불러오는 중 오류가 발생했습니다: {e}")
