@@ -1,11 +1,52 @@
 """
 Similar Channels Discovery
-Find similar channels using related video analysis
+Find similar channels using keyword-based video search
 """
 from typing import List, Dict, Any, Optional
 from collections import Counter
+import re
 
 from . import youtube_api, db
+
+
+def extract_search_keywords(title: str, max_words: int = 5) -> str:
+    """
+    Extract meaningful keywords from video title for search
+
+    Args:
+        title: Video title
+        max_words: Maximum number of words to use
+
+    Returns:
+        Cleaned search query
+    """
+    # Remove special characters and extra spaces
+    title = re.sub(r'[^\w\s가-힣]', ' ', title)
+    title = re.sub(r'\s+', ' ', title).strip()
+
+    # Common stop words to remove (English and Korean)
+    stop_words = {
+        'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for',
+        'of', 'with', 'by', 'from', 'as', 'is', 'was', 'are', 'were',
+        '그', '이', '저', '것', '수', '등', '들', '및', '또는'
+    }
+
+    # Split into words and filter
+    words = title.split()
+    filtered_words = []
+
+    for word in words:
+        if word.lower() not in stop_words and len(word) > 1:
+            filtered_words.append(word)
+            if len(filtered_words) >= max_words:
+                break
+
+    # Use original title if filtering resulted in nothing
+    if not filtered_words:
+        words = title.split()
+        filtered_words = words[:max_words]
+
+    return ' '.join(filtered_words)
 
 
 def find_similar_channels(
@@ -77,46 +118,54 @@ def find_similar_channels(
     top_videos = videos_with_views[:top_videos_count]
     debug_info["top_videos_analyzed"] = len(top_videos)
 
-    # Track which channels appear in related videos
+    # Track which channels appear in search results
     channel_counter = Counter()
-    total_related_videos = 0
+    total_search_results = 0
 
-    # For each top video, find related videos
+    # For each top video, search by keywords from title
     for item in top_videos:
         video = item['video']
         try:
-            related_video_ids = youtube_api.search_related_videos(
-                video.youtube_video_id,
-                max_results=related_per_video
-            )
+            # Extract keywords from video title
+            search_query = extract_search_keywords(video.title, max_words=5)
 
-            if not related_video_ids:
+            if not search_query:
                 continue
 
-            # Get channel info for related videos
-            related_videos = youtube_api.get_videos_info(related_video_ids)
-            total_related_videos += len(related_videos)
+            # Search for similar videos using keywords
+            similar_video_ids = youtube_api.search_videos(
+                keyword=search_query,
+                max_results=related_per_video,
+                order="relevance"
+            )
+
+            if not similar_video_ids:
+                continue
+
+            # Get channel info for search results
+            similar_videos = youtube_api.get_videos_info(similar_video_ids)
+            total_search_results += len(similar_videos)
 
             # Count channel appearances
-            for related_video in related_videos:
-                related_channel_id = related_video.get('channel_id')
+            for similar_video in similar_videos:
+                similar_channel_id = similar_video.get('channel_id')
 
                 # Skip the original channel
-                if related_channel_id and related_channel_id != channel_id:
-                    channel_counter[related_channel_id] += 1
+                if similar_channel_id and similar_channel_id != channel_id:
+                    channel_counter[similar_channel_id] += 1
 
         except Exception as e:
             # Continue if a video fails
-            error_msg = f"영상 {video.youtube_video_id}의 관련 영상 검색 실패: {str(e)}"
+            error_msg = f"영상 '{video.title[:30]}...'의 키워드 검색 실패: {str(e)}"
             debug_info["errors"].append(error_msg)
             print(f"Warning: {error_msg}")
             continue
 
-    debug_info["total_related_videos"] = total_related_videos
+    debug_info["total_related_videos"] = total_search_results
     debug_info["unique_channels_found"] = len(channel_counter)
 
     if not channel_counter:
-        debug_info["errors"].append(f"관련 영상에서 다른 채널을 찾지 못했습니다. (분석한 관련 영상: {total_related_videos}개)")
+        debug_info["errors"].append(f"검색 결과에서 다른 채널을 찾지 못했습니다. (분석한 영상: {total_search_results}개)")
         return {"channels": [], "debug_info": debug_info}
 
     # Filter channels by minimum appearances
@@ -131,9 +180,9 @@ def find_similar_channels(
             channel_info = youtube_api.get_channel_info(ch_id)
 
             # Calculate confidence score (0-100)
-            # Based on: appearance frequency and proportion of total related videos
-            appearance_ratio = count / max(total_related_videos, 1)
-            frequency_score = min(count / top_videos_count * 100, 100)
+            # Based on: appearance frequency and proportion of total search results
+            appearance_ratio = count / max(total_search_results, 1)
+            frequency_score = min(count / len(top_videos) * 100, 100)
             ratio_score = appearance_ratio * 100
             confidence_score = (frequency_score * 0.6 + ratio_score * 0.4)
 

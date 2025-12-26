@@ -284,7 +284,7 @@ else:
 # Similar Channels
 st.markdown("---")
 st.subheader("🔗 유사 채널 찾기")
-st.markdown("이 채널의 인기 영상에서 YouTube 관련 영상 알고리즘을 분석하여 유사한 채널을 찾습니다.")
+st.markdown("이 채널의 인기 영상 제목에서 키워드를 추출하여 YouTube 검색 결과에 자주 나타나는 유사한 채널을 찾습니다.")
 
 # Initialize session state
 if 'similar_channels_data' not in st.session_state:
@@ -305,11 +305,11 @@ with col1:
 
 with col2:
     related_per_video = st.number_input(
-        "영상당 관련 영상 수",
+        "영상당 검색 결과 수",
         min_value=10,
         max_value=50,
         value=20,
-        help="각 영상당 가져올 관련 영상의 수"
+        help="각 영상의 키워드로 검색할 결과 수"
     )
 
 col1, col2 = st.columns([1, 5])
@@ -353,7 +353,7 @@ if st.session_state.similar_channels_data is not None:
 
             with col2:
                 st.metric("분석한 인기 영상", debug_info.get("top_videos_analyzed", 0))
-                st.metric("수집한 관련 영상", debug_info.get("total_related_videos", 0))
+                st.metric("수집한 검색 결과", debug_info.get("total_related_videos", 0))
 
             with col3:
                 st.metric("발견한 유니크 채널", debug_info.get("unique_channels_found", 0))
