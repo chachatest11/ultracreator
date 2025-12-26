@@ -435,6 +435,40 @@ def search_videos(keyword: str, max_results: int = 200,
         raise YouTubeAPIError(f"Failed to parse search results: {e}")
 
 
+def search_related_videos(video_id: str, max_results: int = 20) -> List[str]:
+    """
+    Search for videos related to a given video
+    Returns: list of video IDs
+
+    Args:
+        video_id: Video ID to find related videos for
+        max_results: Maximum number of results (up to 50)
+    """
+    video_ids = []
+
+    url = f"{BASE_URL}/search"
+
+    try:
+        params = {
+            "relatedToVideoId": video_id,
+            "part": "id",
+            "type": "video",
+            "maxResults": min(50, max_results)
+        }
+
+        data = _make_api_request(url, params)
+
+        for item in data.get("items", []):
+            related_video_id = item.get("id", {}).get("videoId")
+            if related_video_id:
+                video_ids.append(related_video_id)
+
+        return video_ids
+
+    except (KeyError, ValueError) as e:
+        raise YouTubeAPIError(f"Failed to parse related videos: {e}")
+
+
 def parse_channel_identifier(identifier: str) -> Tuple[str, str]:
     """
     Parse channel identifier and determine type

@@ -6,7 +6,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime
-from core import db, metrics
+from core import db, metrics, similar
 
 st.set_page_config(page_title="Channel Detail", page_icon="🔍", layout="wide")
 
@@ -280,6 +280,135 @@ else:
                 labels={"x": "시간 (시)", "y": "비율 (%)"}
             )
             st.plotly_chart(fig, use_container_width=True)
+
+# Similar Channels
+st.markdown("---")
+st.subheader("🔗 유사 채널 찾기")
+st.markdown("이 채널의 인기 영상에서 YouTube 관련 영상 알고리즘을 분석하여 유사한 채널을 찾습니다.")
+
+# Initialize session state
+if 'similar_channels_data' not in st.session_state:
+    st.session_state.similar_channels_data = None
+if 'similar_channels_loading' not in st.session_state:
+    st.session_state.similar_channels_loading = False
+
+col1, col2, col3 = st.columns([2, 2, 4])
+
+with col1:
+    top_videos_count = st.number_input(
+        "분석할 인기 영상 수",
+        min_value=5,
+        max_value=30,
+        value=10,
+        help="상위 N개의 인기 영상을 분석합니다"
+    )
+
+with col2:
+    related_per_video = st.number_input(
+        "영상당 관련 영상 수",
+        min_value=10,
+        max_value=50,
+        value=20,
+        help="각 영상당 가져올 관련 영상의 수"
+    )
+
+col1, col2 = st.columns([1, 5])
+
+with col1:
+    if st.button("🔍 유사 채널 찾기", type="primary", use_container_width=True):
+        st.session_state.similar_channels_loading = True
+        st.session_state.similar_channels_data = None
+
+if st.session_state.similar_channels_loading:
+    with st.spinner("유사 채널을 찾는 중... (시간이 걸릴 수 있습니다)"):
+        try:
+            similar_channels = similar.find_similar_channels(
+                channel_id=selected_channel.youtube_channel_id,
+                top_videos_count=top_videos_count,
+                related_per_video=related_per_video,
+                min_appearances=2
+            )
+            st.session_state.similar_channels_data = similar_channels
+            st.session_state.similar_channels_loading = False
+            st.rerun()
+        except Exception as e:
+            st.error(f"유사 채널을 찾는 중 오류가 발생했습니다: {e}")
+            st.session_state.similar_channels_loading = False
+
+# Display results
+if st.session_state.similar_channels_data is not None:
+    similar_channels = st.session_state.similar_channels_data
+
+    if not similar_channels:
+        st.info("유사 채널을 찾지 못했습니다. 영상 데이터가 부족하거나 관련 채널이 없을 수 있습니다.")
+    else:
+        st.success(f"✅ {len(similar_channels)}개의 유사 채널을 발견했습니다!")
+
+        # Display similar channels
+        for i, ch in enumerate(similar_channels):
+            with st.container():
+                col1, col2, col3 = st.columns([1, 3, 2])
+
+                with col1:
+                    if ch.get('thumbnail_url'):
+                        st.image(ch['thumbnail_url'], width=100)
+
+                with col2:
+                    st.markdown(f"### {i+1}. {ch['title']}")
+                    if ch.get('handle'):
+                        st.markdown(f"**핸들:** @{ch['handle']}")
+                    st.caption(f"**채널 ID:** `{ch['channel_id']}`")
+
+                    # Display stats
+                    col_a, col_b, col_c = st.columns(3)
+                    with col_a:
+                        st.metric("구독자", f"{ch['subscriber_count']:,}")
+                    with col_b:
+                        st.metric("영상 수", f"{ch['video_count']:,}")
+                    with col_c:
+                        st.metric("출현 횟수", f"{ch['appearance_count']}회")
+
+                with col3:
+                    st.markdown("**유사도**")
+                    st.progress(ch['confidence_score'] / 100)
+                    st.caption(f"{ch['confidence_score']}% 신뢰도")
+
+                    # Action buttons
+                    if st.button("📊 채널 분석", key=f"analyze_{ch['channel_id']}", use_container_width=True):
+                        # Check if channel already exists in database
+                        existing = db.get_channel_by_youtube_id(ch['channel_id'])
+                        if existing:
+                            st.session_state.selected_channel_id = existing.id
+                            st.rerun()
+                        else:
+                            st.info("이 채널을 먼저 Dashboard에서 추가해주세요.")
+
+                st.markdown("---")
+
+        # Export option
+        st.markdown("#### 📥 결과 내보내기")
+
+        export_data = [{
+            "순위": i + 1,
+            "채널명": ch['title'],
+            "핸들": ch.get('handle', ''),
+            "채널 ID": ch['channel_id'],
+            "구독자": ch['subscriber_count'],
+            "영상 수": ch['video_count'],
+            "출현 횟수": ch['appearance_count'],
+            "신뢰도 (%)": ch['confidence_score']
+        } for i, ch in enumerate(similar_channels)]
+
+        df_export = pd.DataFrame(export_data)
+        csv = df_export.to_csv(index=False, encoding='utf-8-sig')
+
+        st.download_button(
+            label="📥 CSV로 다운로드",
+            data=csv,
+            file_name=f"similar_channels_{selected_channel.title}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+            mime="text/csv",
+            use_container_width=False
+        )
 
 # Footer
 st.markdown("---")
