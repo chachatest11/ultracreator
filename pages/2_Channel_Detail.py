@@ -165,8 +165,8 @@ else:
     # Display videos in grid with thumbnails
     st.markdown(f"**총 {len(videos)}개의 영상**")
 
-    # Create grid layout (3 columns)
-    cols_per_row = 3
+    # Create grid layout (5 columns)
+    cols_per_row = 5
     for i in range(0, len(videos), cols_per_row):
         cols = st.columns(cols_per_row)
 
@@ -177,34 +177,31 @@ else:
                 snapshot = db.get_latest_video_snapshot(video.id)
 
                 with cols[j]:
-                    # Thumbnail
+                    # Thumbnail - clickable
                     thumbnail_url = video.thumbnail_url or f"https://img.youtube.com/vi/{video.youtube_video_id}/hqdefault.jpg"
 
-                    # Use button with image for clickable thumbnail
+                    st.image(thumbnail_url, use_column_width=True)
+
+                    # Clickable thumbnail button
                     if st.button(
                         "▶️ 재생",
                         key=f"play_{video.youtube_video_id}",
                         use_container_width=True
                     ):
                         st.session_state.selected_video_id = video.youtube_video_id
-
-                    st.image(thumbnail_url, use_column_width=True)
+                        st.rerun()
 
                     # Video info
-                    st.markdown(f"**{video.title[:50]}{'...' if len(video.title) > 50 else ''}**")
+                    st.markdown(f"**{video.title[:40]}{'...' if len(video.title) > 40 else ''}**")
 
                     # Stats
                     video_type = "🩳 Shorts" if video.duration_seconds <= 60 else "🎥 일반"
                     st.caption(f"{video_type} | {video.duration_seconds}초")
 
                     if snapshot:
-                        col_a, col_b = st.columns(2)
-                        with col_a:
-                            st.metric("조회수", f"{snapshot.view_count:,}", label_visibility="collapsed")
-                            st.caption("👁️ 조회수")
-                        with col_b:
-                            st.metric("좋아요", f"{snapshot.like_count:,}", label_visibility="collapsed")
-                            st.caption("👍 좋아요")
+                        st.caption(f"👁️ {snapshot.view_count:,}")
+                        st.caption(f"👍 {snapshot.like_count:,}")
+                        st.caption(f"💬 {snapshot.comment_count:,}")
 
                     st.caption(f"📅 {video.published_at.strftime('%Y-%m-%d') if video.published_at else 'N/A'}")
                     st.markdown("---")
