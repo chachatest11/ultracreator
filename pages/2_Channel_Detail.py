@@ -391,14 +391,18 @@ if st.session_state.similar_channels_data is not None:
 
                 with col2:
                     # Create YouTube channel URL
-                    if ch.get('handle'):
-                        youtube_url = f"https://www.youtube.com/@{ch['handle']}"
+                    handle = ch.get('handle', '')
+                    # Remove leading @ if present for consistent handling
+                    handle_clean = handle.lstrip('@') if handle else ''
+
+                    if handle_clean:
+                        youtube_url = f"https://www.youtube.com/@{handle_clean}"
                     else:
                         youtube_url = f"https://www.youtube.com/channel/{ch['channel_id']}"
 
                     st.markdown(f"### {i+1}. [{ch['title']}]({youtube_url})")
-                    if ch.get('handle'):
-                        st.markdown(f"**핸들:** [@{ch['handle']}](https://www.youtube.com/@{ch['handle']})")
+                    if handle_clean:
+                        st.markdown(f"**핸들:** [@{handle_clean}](https://www.youtube.com/@{handle_clean})")
                     st.caption(f"**채널 ID:** `{ch['channel_id']}`")
 
                     # Display stats
