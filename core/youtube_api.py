@@ -30,18 +30,33 @@ class APIKeyManager:
         self.exhausted_keys = set()
 
     def _load_api_keys(self) -> List[str]:
-        """Load API keys from environment variable"""
-        # Support both single key and multiple keys
+        """Load API keys from environment variable and UI storage"""
+        keys = []
+
+        # 1. Load from .env file
         single_key = os.getenv("YOUTUBE_API_KEY", "")
         multi_keys = os.getenv("YOUTUBE_API_KEYS", "")
 
         if multi_keys:
             # Split by comma and strip whitespace
-            keys = [key.strip() for key in multi_keys.split(",") if key.strip()]
+            env_keys = [key.strip() for key in multi_keys.split(",") if key.strip()]
+            keys.extend(env_keys)
         elif single_key:
-            keys = [single_key]
-        else:
-            keys = []
+            keys.append(single_key)
+
+        # 2. Load from UI storage file
+        try:
+            from .api_key_storage import get_storage
+            storage = get_storage()
+            ui_keys = storage.get_active_keys()
+
+            # Add UI keys that are not already in env keys
+            for ui_key in ui_keys:
+                if ui_key not in keys:
+                    keys.append(ui_key)
+        except:
+            # If storage module not available or fails, continue with env keys
+            pass
 
         return keys
 

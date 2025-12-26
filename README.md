@@ -93,6 +93,22 @@ YOUTUBE_API_KEYS=AIzaSyXXXXXXXXXXXXXXX1,AIzaSyXXXXXXXXXXXXXXX2,AIzaSyXXXXXXXXXXX
 
 **중요:** `.env` 파일에 실제 API 키를 입력하세요.
 
+#### Option 3: UI에서 관리 (가장 편리! 🎯)
+
+앱을 실행한 후 **API Key Manager** 페이지에서 키를 추가/삭제/관리할 수 있습니다!
+
+**장점:**
+- ✅ 앱 재시작 없이 즉시 키 추가/삭제
+- ✅ 키별 이름 설정 및 활성화/비활성화
+- ✅ 키 상태 및 사용 내역 확인
+- ✅ 일괄 가져오기 기능으로 빠른 설정
+- ✅ .env 파일 수정 불필요
+
+**사용 방법:**
+1. 앱 실행: `streamlit run app.py`
+2. 왼쪽 사이드바에서 **🔑 API Key Manager** 페이지 선택
+3. 키 추가/관리
+
 ### 5. 실행
 
 ```bash
