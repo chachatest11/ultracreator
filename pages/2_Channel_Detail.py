@@ -381,9 +381,15 @@ if st.session_state.similar_channels_data is not None:
                         st.image(ch['thumbnail_url'], width=100)
 
                 with col2:
-                    st.markdown(f"### {i+1}. {ch['title']}")
+                    # Create YouTube channel URL
                     if ch.get('handle'):
-                        st.markdown(f"**핸들:** @{ch['handle']}")
+                        youtube_url = f"https://www.youtube.com/@{ch['handle']}"
+                    else:
+                        youtube_url = f"https://www.youtube.com/channel/{ch['channel_id']}"
+
+                    st.markdown(f"### {i+1}. [{ch['title']}]({youtube_url})")
+                    if ch.get('handle'):
+                        st.markdown(f"**핸들:** [@{ch['handle']}](https://www.youtube.com/@{ch['handle']})")
                     st.caption(f"**채널 ID:** `{ch['channel_id']}`")
 
                     # Display stats
