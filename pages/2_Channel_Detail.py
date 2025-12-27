@@ -37,20 +37,18 @@ def show_video_player(video_id, video_title):
                     with tempfile.TemporaryDirectory() as temp_dir:
                         output_template = os.path.join(temp_dir, "video.%(ext)s")
 
-                        # yt-dlp options - prioritize pre-merged formats first
+                        # yt-dlp options - ONLY pre-merged formats (no merging, no ffmpeg needed)
                         ydl_opts = {
-                            # Try pre-merged format first (no ffmpeg needed), then merge if needed
+                            # Use ONLY pre-merged formats - no "+" operator (no merging)
+                            # This ensures we get video+audio already combined by YouTube
                             'format': (
-                                'bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/'  # Best combo, max 1080p
-                                'bestvideo[height<=1080]+bestaudio/'  # Any format combo, max 1080p
-                                'best[height<=1080][ext=mp4]/'  # Pre-merged mp4, max 1080p
-                                'best[height<=1080]/'  # Pre-merged any format, max 1080p
-                                'bestvideo[ext=mp4]+bestaudio[ext=m4a]/'  # Best combo (no height limit)
-                                'best[ext=mp4]/'  # Pre-merged mp4
-                                'best'  # Fallback to best available
+                                'best[height<=720][ext=mp4]/'  # Pre-merged mp4, 720p max (widely available)
+                                'best[height<=480][ext=mp4]/'  # Pre-merged mp4, 480p (more compatible)
+                                'best[ext=mp4]/'               # Any pre-merged mp4
+                                'best'                         # Final fallback
                             ),
                             'outtmpl': output_template,
-                            'merge_output_format': 'mp4',
+                            # NO merge_output_format - we don't want merging
                         }
 
                         # Download video
