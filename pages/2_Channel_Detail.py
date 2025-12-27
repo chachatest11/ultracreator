@@ -265,7 +265,7 @@ else:
                     # Thumbnail - clickable
                     thumbnail_url = video.thumbnail_url or f"https://img.youtube.com/vi/{video.youtube_video_id}/hqdefault.jpg"
 
-                    st.image(thumbnail_url, width=None)  # Use default column width
+                    st.image(thumbnail_url, use_container_width=True)
 
                     # Clickable thumbnail button
                     if st.button(
