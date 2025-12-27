@@ -39,12 +39,12 @@ def show_video_player(video_id, video_title):
                         # yt-dlp options
                         ydl_opts = {
                             # Download best video (max 1080p) + best audio, merge to mp4
-                            'format': 'bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=1080]+bestaudio/best[height<=1080]',
+                            # Multiple fallback options for compatibility
+                            'format': 'bestvideo[height<=1080]+bestaudio/best[height<=1080]/bestvideo+bestaudio/best',
                             'outtmpl': output_path,
                             'merge_output_format': 'mp4',  # Merge video+audio to mp4
                             'quiet': True,
                             'no_warnings': True,
-                            'prefer_ffmpeg': True,  # Prefer ffmpeg for merging
                         }
 
                         # Download video
