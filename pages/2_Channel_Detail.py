@@ -8,6 +8,7 @@ import plotly.graph_objects as go
 from datetime import datetime
 import os
 import tempfile
+import glob
 import yt_dlp
 from core import db, metrics, similar
 
@@ -34,25 +35,48 @@ def show_video_player(video_id, video_title):
                 try:
                     # Create temporary directory
                     with tempfile.TemporaryDirectory() as temp_dir:
-                        output_path = os.path.join(temp_dir, f"{video_id}.mp4")
+                        output_template = os.path.join(temp_dir, "video.%(ext)s")
 
                         # yt-dlp options
                         ydl_opts = {
-                            # Download best video (max 1080p) + best audio, merge to mp4
-                            # Multiple fallback options for compatibility
                             'format': 'bestvideo[height<=1080]+bestaudio/best[height<=1080]/bestvideo+bestaudio/best',
-                            'outtmpl': output_path,
-                            'merge_output_format': 'mp4',  # Merge video+audio to mp4
-                            'quiet': True,
-                            'no_warnings': True,
+                            'outtmpl': output_template,
+                            'merge_output_format': 'mp4',
+                            'postprocessors': [{
+                                'key': 'FFmpegVideoConvertor',
+                                'preferedformat': 'mp4',
+                            }],
+                            'quiet': False,  # Show output for debugging
+                            'no_warnings': False,
                         }
 
                         # Download video
                         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                            ydl.download([video_url])
+                            info = ydl.extract_info(video_url, download=True)
+
+                        # Find the downloaded file (might be video.mp4 or video.webm.mp4 etc)
+                        downloaded_files = glob.glob(os.path.join(temp_dir, "*"))
+
+                        if not downloaded_files:
+                            raise Exception("다운로드된 파일을 찾을 수 없습니다.")
+
+                        # Get the video file (should be .mp4)
+                        video_file = None
+                        for f in downloaded_files:
+                            if f.endswith('.mp4'):
+                                video_file = f
+                                break
+
+                        if not video_file:
+                            # Try any file
+                            video_file = downloaded_files[0]
+
+                        # Check file size
+                        file_size = os.path.getsize(video_file)
+                        st.info(f"파일 크기: {file_size / (1024*1024):.2f} MB")
 
                         # Read the downloaded file
-                        with open(output_path, 'rb') as f:
+                        with open(video_file, 'rb') as f:
                             video_bytes = f.read()
 
                         # Provide download button
@@ -66,8 +90,9 @@ def show_video_player(video_id, video_title):
                         st.success("✅ 다운로드 완료! 위 버튼을 클릭하여 저장하세요.")
 
                 except Exception as e:
-                    st.error(f"다운로드 실패: {e}")
+                    st.error(f"다운로드 실패: {str(e)}")
                     st.caption("💡 팁: ffmpeg가 설치되지 않은 경우 비디오+오디오 병합이 실패할 수 있습니다.")
+                    st.caption("서버에 ffmpeg를 설치해주세요: apt-get install ffmpeg (Linux) 또는 brew install ffmpeg (macOS)")
 
     with col2:
         if st.button("❌ 닫기", use_container_width=True):
@@ -240,7 +265,7 @@ else:
                     # Thumbnail - clickable
                     thumbnail_url = video.thumbnail_url or f"https://img.youtube.com/vi/{video.youtube_video_id}/hqdefault.jpg"
 
-                    st.image(thumbnail_url, use_column_width=True)
+                    st.image(thumbnail_url, width=None)  # Use default column width
 
                     # Clickable thumbnail button
                     if st.button(
