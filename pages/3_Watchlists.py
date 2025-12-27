@@ -211,7 +211,7 @@ with tab1:
             title="채널별 구독자 수",
             labels={"채널명": "채널", "구독자수": "구독자"}
         )
-        fig.update_xaxis(tickangle=-45)
+        fig.update_xaxes(tickangle=-45)
         st.plotly_chart(fig, use_container_width=True)
 
     with col2:
@@ -223,7 +223,7 @@ with tab1:
             title="채널별 평균 조회수 (최근 10개)",
             labels={"채널명": "채널", "평균 조회수": "평균 조회수"}
         )
-        fig.update_xaxis(tickangle=-45)
+        fig.update_xaxes(tickangle=-45)
         st.plotly_chart(fig, use_container_width=True)
 
     # Growth comparison
@@ -237,7 +237,7 @@ with tab1:
             title="7일 구독자 성장",
             labels={"채널명": "채널", "7일 성장": "성장 수"}
         )
-        fig.update_xaxis(tickangle=-45)
+        fig.update_xaxes(tickangle=-45)
         st.plotly_chart(fig, use_container_width=True)
 
     with col2:
@@ -248,7 +248,7 @@ with tab1:
             title="30일 구독자 성장",
             labels={"채널명": "채널", "30일 성장": "성장 수"}
         )
-        fig.update_xaxis(tickangle=-45)
+        fig.update_xaxes(tickangle=-45)
         st.plotly_chart(fig, use_container_width=True)
 
 with tab2:
@@ -265,7 +265,7 @@ with tab2:
             title="채널별 업로드 주기 (일)",
             labels={"채널명": "채널", "업로드 주기": "평균 일수"}
         )
-        fig.update_xaxis(tickangle=-45)
+        fig.update_xaxes(tickangle=-45)
         st.plotly_chart(fig, use_container_width=True)
 
         st.caption("숫자가 작을수록 자주 업로드함")
@@ -279,7 +279,7 @@ with tab2:
             title="채널별 평균 제목 길이",
             labels={"채널명": "채널", "제목 길이": "평균 문자 수"}
         )
-        fig.update_xaxis(tickangle=-45)
+        fig.update_xaxes(tickangle=-45)
         st.plotly_chart(fig, use_container_width=True)
 
     # Day and hour patterns
@@ -323,7 +323,7 @@ with tab3:
             title="채널별 Shorts 비중 (%)",
             labels={"채널명": "채널", "Shorts 비중": "비중 (%)"}
         )
-        fig.update_xaxis(tickangle=-45)
+        fig.update_xaxes(tickangle=-45)
         st.plotly_chart(fig, use_container_width=True)
 
     with col2:
@@ -335,7 +335,7 @@ with tab3:
             title="Top5 조회수 집중도 (%)",
             labels={"채널명": "채널", "Top5 집중도": "집중도 (%)"}
         )
-        fig.update_xaxis(tickangle=-45)
+        fig.update_xaxes(tickangle=-45)
         st.plotly_chart(fig, use_container_width=True)
 
         st.caption("높을수록 특정 영상에 조회수가 집중됨")

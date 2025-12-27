@@ -117,9 +117,17 @@ for i, channel in enumerate(channels):
         if upload_freq > 7 or view_variance < 0.3:  # Not frequent enough or too stable
             continue
 
+    # Create YouTube URL
+    handle_clean = channel.handle.lstrip('@') if channel.handle else ''
+    if handle_clean:
+        youtube_url = f"https://www.youtube.com/@{handle_clean}"
+    else:
+        youtube_url = f"https://www.youtube.com/channel/{channel.youtube_channel_id}"
+
     channel_data.append({
         "ID": channel.id,
         "채널명": channel.title,
+        "YouTube": youtube_url,
         "핸들": channel.handle,
         "구독자수": channel_metrics['subscriber_count'],
         "평균 조회수 (10개)": int(channel_metrics['avg_views_recent_10']),
@@ -188,6 +196,10 @@ st.dataframe(
     hide_index=True,
     column_config={
         "ID": None,  # Hide ID column
+        "YouTube": st.column_config.LinkColumn(
+            "YouTube 링크",
+            display_text="🔗 채널 보기"
+        ),
         "구독자수": st.column_config.NumberColumn(format="%d"),
         "평균 조회수 (10개)": st.column_config.NumberColumn(format="%d"),
         "7일 성장": st.column_config.NumberColumn(format="%+d"),
