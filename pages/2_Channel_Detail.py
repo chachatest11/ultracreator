@@ -10,7 +10,7 @@ import os
 import tempfile
 import glob
 import yt_dlp
-from core import db, metrics, similar
+from core import db, metrics, similar, jobs
 
 st.set_page_config(page_title="Channel Detail", page_icon="🔍", layout="wide")
 
@@ -600,7 +600,28 @@ if st.session_state.similar_channels_data is not None:
 
                     st.markdown(f"### {i+1}. [{ch['title']}]({youtube_url})")
                     if handle_clean:
-                        st.markdown(f"**핸들:** [@{handle_clean}](https://www.youtube.com/@{handle_clean})")
+                        # Display handle with add button
+                        col_handle, col_add_btn = st.columns([5, 1])
+                        with col_handle:
+                            st.markdown(f"**핸들:** [@{handle_clean}](https://www.youtube.com/@{handle_clean})")
+                        with col_add_btn:
+                            # Check if channel already exists
+                            existing = db.get_channel_by_youtube_id(ch['channel_id'])
+                            if not existing:
+                                if st.button("➕", key=f"add_{ch['channel_id']}", help="Dashboard에 채널 추가", use_container_width=True):
+                                    with st.spinner(f"{ch['title']} 채널을 추가하는 중..."):
+                                        result = jobs.fetch_channel_data(
+                                            ch['channel_id'],
+                                            force_refresh=False,
+                                            progress_callback=lambda msg: None
+                                        )
+                                        if result:
+                                            st.success(f"✅ '{ch['title']}' 채널이 추가되었습니다!")
+                                            st.rerun()
+                                        else:
+                                            st.error("채널 추가에 실패했습니다.")
+                            else:
+                                st.caption("✓")
                     st.caption(f"**채널 ID:** `{ch['channel_id']}`")
 
                     # Display stats
