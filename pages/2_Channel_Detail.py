@@ -6,9 +6,69 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime
+import os
+import tempfile
+import yt_dlp
 from core import db, metrics, similar
 
 st.set_page_config(page_title="Channel Detail", page_icon="🔍", layout="wide")
+
+
+# Video player dialog
+@st.dialog("🎬 영상 재생", width="large")
+def show_video_player(video_id, video_title):
+    """Display video player in a dialog"""
+    st.markdown(f"**{video_title}**")
+
+    # YouTube video player
+    video_url = f"https://www.youtube.com/watch?v={video_id}"
+    st.video(video_url)
+
+    # Download button
+    st.markdown("---")
+    col1, col2 = st.columns([1, 1])
+
+    with col1:
+        if st.button("📥 영상 다운로드", use_container_width=True, type="primary"):
+            with st.spinner("영상을 다운로드하는 중... (시간이 걸릴 수 있습니다)"):
+                try:
+                    # Create temporary directory
+                    with tempfile.TemporaryDirectory() as temp_dir:
+                        output_path = os.path.join(temp_dir, f"{video_id}.mp4")
+
+                        # yt-dlp options
+                        ydl_opts = {
+                            'format': 'best[ext=mp4]/best',
+                            'outtmpl': output_path,
+                            'quiet': True,
+                            'no_warnings': True,
+                        }
+
+                        # Download video
+                        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                            ydl.download([video_url])
+
+                        # Read the downloaded file
+                        with open(output_path, 'rb') as f:
+                            video_bytes = f.read()
+
+                        # Provide download button
+                        st.download_button(
+                            label="💾 다운로드 완료 - 저장하기",
+                            data=video_bytes,
+                            file_name=f"{video_title[:50]}.mp4",
+                            mime="video/mp4",
+                            use_container_width=True
+                        )
+                        st.success("✅ 다운로드 완료! 위 버튼을 클릭하여 저장하세요.")
+
+                except Exception as e:
+                    st.error(f"다운로드 실패: {e}")
+
+    with col2:
+        if st.button("❌ 닫기", use_container_width=True):
+            st.rerun()
+
 
 st.title("🔍 Channel Detail")
 st.markdown("채널 상세 분석 및 영상 데이터")
@@ -158,10 +218,6 @@ videos = db.get_videos_by_channel(selected_channel.id, limit=video_limit)
 if not videos:
     st.info("이 채널의 영상 데이터가 없습니다.")
 else:
-    # Initialize session state for selected video
-    if 'selected_video_id' not in st.session_state:
-        st.session_state.selected_video_id = None
-
     # Display videos in grid with thumbnails
     st.markdown(f"**총 {len(videos)}개의 영상**")
 
@@ -188,8 +244,7 @@ else:
                         key=f"play_{video.youtube_video_id}",
                         use_container_width=True
                     ):
-                        st.session_state.selected_video_id = video.youtube_video_id
-                        st.rerun()
+                        show_video_player(video.youtube_video_id, video.title)
 
                     # Video info
                     st.markdown(f"**{video.title[:40]}{'...' if len(video.title) > 40 else ''}**")
@@ -205,27 +260,6 @@ else:
 
                     st.caption(f"📅 {video.published_at.strftime('%Y-%m-%d') if video.published_at else 'N/A'}")
                     st.markdown("---")
-
-    # Video player (appears when thumbnail is clicked)
-    if st.session_state.selected_video_id:
-        st.markdown("### 🎬 영상 재생")
-
-        # Find selected video details
-        selected_video = next((v for v in videos if v.youtube_video_id == st.session_state.selected_video_id), None)
-
-        if selected_video:
-            st.markdown(f"**{selected_video.title}**")
-
-            # YouTube video player
-            video_url = f"https://www.youtube.com/watch?v={st.session_state.selected_video_id}"
-            st.video(video_url)
-
-            # Close button
-            if st.button("❌ 닫기", key="close_video"):
-                st.session_state.selected_video_id = None
-                st.rerun()
-
-            st.markdown("---")
 
     # Summary table view (collapsible)
     with st.expander("📋 전체 영상 목록 (테이블 형식)"):

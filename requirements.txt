@@ -4,6 +4,9 @@ streamlit>=1.28.0
 # YouTube API
 requests>=2.31.0
 
+# YouTube Video Download
+yt-dlp>=2023.12.0
+
 # Database
 # SQLite is built into Python, no additional package needed
 
