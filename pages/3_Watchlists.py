@@ -64,7 +64,7 @@ if not watchlists:
 
 # Select watchlist
 selected_watchlist_name = st.selectbox(
-    "워치리스트 선택",
+    "그룹 선택",
     [wl.name for wl in watchlists]
 )
 
@@ -88,18 +88,22 @@ with col1:
     available_channels = [ch for ch in all_channels if ch.id not in watchlist_channel_ids]
 
     if available_channels:
-        add_channel = st.selectbox(
-            "추가할 채널",
+        add_channels = st.multiselect(
+            "추가할 채널 (복수 선택 가능)",
             [ch.title for ch in available_channels],
-            key="add_channel"
+            key="add_channels"
         )
 
         if st.button("추가", use_container_width=True):
-            add_ch = next(ch for ch in available_channels if ch.title == add_channel)
-            db.add_channel_to_watchlist(selected_watchlist.id, add_ch.id)
-            st.success(f"✓ '{add_channel}'이(가) 추가되었습니다!")
-            st.session_state.refresh_trigger += 1
-            st.rerun()
+            if add_channels:
+                for channel_title in add_channels:
+                    add_ch = next(ch for ch in available_channels if ch.title == channel_title)
+                    db.add_channel_to_watchlist(selected_watchlist.id, add_ch.id)
+                st.success(f"✓ {len(add_channels)}개 채널이 추가되었습니다!")
+                st.session_state.refresh_trigger += 1
+                st.rerun()
+            else:
+                st.warning("추가할 채널을 선택해주세요.")
     else:
         st.info("추가할 수 있는 채널이 없습니다.")
 
@@ -107,18 +111,22 @@ with col2:
     st.markdown("#### 채널 제거")
 
     if watchlist_channels:
-        remove_channel = st.selectbox(
-            "제거할 채널",
+        remove_channels = st.multiselect(
+            "제거할 채널 (복수 선택 가능)",
             [ch.title for ch in watchlist_channels],
-            key="remove_channel"
+            key="remove_channels"
         )
 
         if st.button("제거", use_container_width=True, type="secondary"):
-            remove_ch = next(ch for ch in watchlist_channels if ch.title == remove_channel)
-            db.remove_channel_from_watchlist(selected_watchlist.id, remove_ch.id)
-            st.success(f"✓ '{remove_channel}'이(가) 제거되었습니다!")
-            st.session_state.refresh_trigger += 1
-            st.rerun()
+            if remove_channels:
+                for channel_title in remove_channels:
+                    remove_ch = next(ch for ch in watchlist_channels if ch.title == channel_title)
+                    db.remove_channel_from_watchlist(selected_watchlist.id, remove_ch.id)
+                st.success(f"✓ {len(remove_channels)}개 채널이 제거되었습니다!")
+                st.session_state.refresh_trigger += 1
+                st.rerun()
+            else:
+                st.warning("제거할 채널을 선택해주세요.")
     else:
         st.info("워치리스트에 채널이 없습니다.")
 
@@ -142,9 +150,17 @@ for i, channel in enumerate(watchlist_channels):
 
     channel_metrics = metrics.get_channel_metrics(channel.id)
 
+    # Create YouTube URL
+    handle_clean = channel.handle.lstrip('@') if channel.handle else ''
+    if handle_clean:
+        youtube_url = f"https://www.youtube.com/@{handle_clean}"
+    else:
+        youtube_url = f"https://www.youtube.com/channel/{channel.youtube_channel_id}"
+
     comparison_data.append({
         "순위": i + 1,
         "채널명": channel.title,
+        "YouTube": youtube_url,
         "구독자수": channel_metrics['subscriber_count'],
         "평균 조회수": int(channel_metrics['avg_views_recent_10']),
         "업로드 주기": round(channel_metrics['upload_frequency']['average_days'], 1),
@@ -184,6 +200,10 @@ st.dataframe(
     use_container_width=True,
     hide_index=True,
     column_config={
+        "YouTube": st.column_config.LinkColumn(
+            "YouTube 링크",
+            display_text="🔗 채널 보기"
+        ),
         "구독자수": st.column_config.NumberColumn(format="%d"),
         "평균 조회수": st.column_config.NumberColumn(format="%d"),
         "Shorts 비중": st.column_config.NumberColumn(format="%.1f%%"),
