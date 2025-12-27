@@ -38,10 +38,13 @@ def show_video_player(video_id, video_title):
 
                         # yt-dlp options
                         ydl_opts = {
-                            'format': 'best[ext=mp4]/best',
+                            # Download best video (max 1080p) + best audio, merge to mp4
+                            'format': 'bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=1080]+bestaudio/best[height<=1080]',
                             'outtmpl': output_path,
+                            'merge_output_format': 'mp4',  # Merge video+audio to mp4
                             'quiet': True,
                             'no_warnings': True,
+                            'prefer_ffmpeg': True,  # Prefer ffmpeg for merging
                         }
 
                         # Download video
@@ -64,6 +67,7 @@ def show_video_player(video_id, video_title):
 
                 except Exception as e:
                     st.error(f"다운로드 실패: {e}")
+                    st.caption("💡 팁: ffmpeg가 설치되지 않은 경우 비디오+오디오 병합이 실패할 수 있습니다.")
 
     with col2:
         if st.button("❌ 닫기", use_container_width=True):
