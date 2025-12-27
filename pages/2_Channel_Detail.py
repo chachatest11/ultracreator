@@ -37,23 +37,30 @@ def show_video_player(video_id, video_title):
                     with tempfile.TemporaryDirectory() as temp_dir:
                         output_template = os.path.join(temp_dir, "video.%(ext)s")
 
-                        # yt-dlp options - ONLY pre-merged formats (no merging, no ffmpeg needed)
+                        # yt-dlp options - Download best quality video with audio
                         ydl_opts = {
-                            # Use ONLY pre-merged formats - no "+" operator (no merging)
-                            # This ensures we get video+audio already combined by YouTube
+                            # Download best video + best audio, merge to mp4
+                            # Falls back to best single file if merging not available
                             'format': (
-                                'best[height<=720][ext=mp4]/'  # Pre-merged mp4, 720p max (widely available)
-                                'best[height<=480][ext=mp4]/'  # Pre-merged mp4, 480p (more compatible)
-                                'best[ext=mp4]/'               # Any pre-merged mp4
-                                'best'                         # Final fallback
+                                'bestvideo[ext=mp4]+bestaudio[ext=m4a]/'  # Best mp4 video + m4a audio
+                                'bestvideo+bestaudio/'                     # Best video + audio (any format)
+                                'best[ext=mp4]/'                          # Pre-merged mp4 if available
+                                'best'                                     # Final fallback
                             ),
                             'outtmpl': output_template,
-                            # NO merge_output_format - we don't want merging
+                            'merge_output_format': 'mp4',  # Merge to mp4 format
+                            # Reject audio-only formats
+                            'format_sort': ['vcodec:h264', 'res', 'acodec:m4a'],
                         }
 
                         # Download video
                         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                             info = ydl.extract_info(video_url, download=True)
+
+                        # Check if video stream exists
+                        vcodec = info.get('vcodec', 'none')
+                        if vcodec == 'none' or not vcodec:
+                            raise Exception("비디오 스트림이 없습니다. 오디오만 다운로드되었습니다. 다른 영상을 시도해주세요.")
 
                         # Find the downloaded file
                         downloaded_files = glob.glob(os.path.join(temp_dir, "*"))
@@ -71,15 +78,15 @@ def show_video_player(video_id, video_title):
                         if not video_file:
                             video_file = downloaded_files[0]
 
-                        # Check file size to verify it's not just audio
+                        # Check file size
                         file_size = os.path.getsize(video_file)
                         file_size_mb = file_size / (1024*1024)
 
-                        st.info(f"파일 크기: {file_size_mb:.2f} MB")
+                        # Get video info for display
+                        resolution = info.get('resolution', 'Unknown')
+                        vcodec_info = info.get('vcodec', 'Unknown')
 
-                        # Warning if file seems too small (likely audio only)
-                        if file_size_mb < 1:
-                            st.warning("⚠️ 파일이 매우 작습니다. 오디오만 다운로드되었을 수 있습니다.")
+                        st.info(f"✅ 화질: {resolution} | 코덱: {vcodec_info} | 크기: {file_size_mb:.2f} MB")
 
                         # Read the downloaded file
                         with open(video_file, 'rb') as f:
@@ -98,9 +105,12 @@ def show_video_player(video_id, video_title):
                 except Exception as e:
                     st.error(f"다운로드 실패: {str(e)}")
                     st.caption("💡 문제 해결 방법:")
-                    st.caption("1. 서버에 ffmpeg 설치: `apt-get install ffmpeg` (Linux) 또는 `brew install ffmpeg` (macOS)")
+                    st.caption("1. **ffmpeg 필요**: 고화질 다운로드를 위해 ffmpeg가 필요합니다.")
+                    st.caption("   - Linux: `sudo apt-get install ffmpeg`")
+                    st.caption("   - macOS: `brew install ffmpeg`")
+                    st.caption("   - Windows: https://ffmpeg.org/download.html")
                     st.caption("2. 일부 영상은 YouTube 정책상 다운로드가 제한될 수 있습니다.")
-                    st.caption("3. 짧은 영상(Shorts)의 경우 더 잘 작동할 수 있습니다.")
+                    st.caption("3. 오디오만 제공되는 영상이거나 라이브 스트림일 수 있습니다.")
 
     with col2:
         if st.button("❌ 닫기", use_container_width=True):
