@@ -37,30 +37,33 @@ def show_video_player(video_id, video_title):
                     with tempfile.TemporaryDirectory() as temp_dir:
                         output_template = os.path.join(temp_dir, "video.%(ext)s")
 
-                        # yt-dlp options
+                        # yt-dlp options - prioritize pre-merged formats first
                         ydl_opts = {
-                            'format': 'bestvideo[height<=1080]+bestaudio/best[height<=1080]/bestvideo+bestaudio/best',
+                            # Try pre-merged format first (no ffmpeg needed), then merge if needed
+                            'format': (
+                                'bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/'  # Best combo, max 1080p
+                                'bestvideo[height<=1080]+bestaudio/'  # Any format combo, max 1080p
+                                'best[height<=1080][ext=mp4]/'  # Pre-merged mp4, max 1080p
+                                'best[height<=1080]/'  # Pre-merged any format, max 1080p
+                                'bestvideo[ext=mp4]+bestaudio[ext=m4a]/'  # Best combo (no height limit)
+                                'best[ext=mp4]/'  # Pre-merged mp4
+                                'best'  # Fallback to best available
+                            ),
                             'outtmpl': output_template,
                             'merge_output_format': 'mp4',
-                            'postprocessors': [{
-                                'key': 'FFmpegVideoConvertor',
-                                'preferedformat': 'mp4',
-                            }],
-                            'quiet': False,  # Show output for debugging
-                            'no_warnings': False,
                         }
 
                         # Download video
                         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                             info = ydl.extract_info(video_url, download=True)
 
-                        # Find the downloaded file (might be video.mp4 or video.webm.mp4 etc)
+                        # Find the downloaded file
                         downloaded_files = glob.glob(os.path.join(temp_dir, "*"))
 
                         if not downloaded_files:
                             raise Exception("다운로드된 파일을 찾을 수 없습니다.")
 
-                        # Get the video file (should be .mp4)
+                        # Get the video file (prefer .mp4)
                         video_file = None
                         for f in downloaded_files:
                             if f.endswith('.mp4'):
@@ -68,12 +71,17 @@ def show_video_player(video_id, video_title):
                                 break
 
                         if not video_file:
-                            # Try any file
                             video_file = downloaded_files[0]
 
-                        # Check file size
+                        # Check file size to verify it's not just audio
                         file_size = os.path.getsize(video_file)
-                        st.info(f"파일 크기: {file_size / (1024*1024):.2f} MB")
+                        file_size_mb = file_size / (1024*1024)
+
+                        st.info(f"파일 크기: {file_size_mb:.2f} MB")
+
+                        # Warning if file seems too small (likely audio only)
+                        if file_size_mb < 1:
+                            st.warning("⚠️ 파일이 매우 작습니다. 오디오만 다운로드되었을 수 있습니다.")
 
                         # Read the downloaded file
                         with open(video_file, 'rb') as f:
@@ -91,8 +99,10 @@ def show_video_player(video_id, video_title):
 
                 except Exception as e:
                     st.error(f"다운로드 실패: {str(e)}")
-                    st.caption("💡 팁: ffmpeg가 설치되지 않은 경우 비디오+오디오 병합이 실패할 수 있습니다.")
-                    st.caption("서버에 ffmpeg를 설치해주세요: apt-get install ffmpeg (Linux) 또는 brew install ffmpeg (macOS)")
+                    st.caption("💡 문제 해결 방법:")
+                    st.caption("1. 서버에 ffmpeg 설치: `apt-get install ffmpeg` (Linux) 또는 `brew install ffmpeg` (macOS)")
+                    st.caption("2. 일부 영상은 YouTube 정책상 다운로드가 제한될 수 있습니다.")
+                    st.caption("3. 짧은 영상(Shorts)의 경우 더 잘 작동할 수 있습니다.")
 
     with col2:
         if st.button("❌ 닫기", use_container_width=True):
