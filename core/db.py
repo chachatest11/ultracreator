@@ -237,8 +237,14 @@ def get_all_channels() -> List[Channel]:
         print(f"[GET_CHANNELS] Total channels in DB: {total_count}")
 
         cursor.execute("SELECT * FROM channels ORDER BY created_at DESC")
-        channels = [Channel.from_db_row(row) for row in cursor.fetchall()]
+        rows = cursor.fetchall()
+        channels = [Channel.from_db_row(row) for row in rows]
 
+        # Debug: Show actual channel IDs from raw query
+        cursor.execute("SELECT id, title FROM channels")
+        raw_channels = cursor.fetchall()
+        print(f"[GET_CHANNELS] Raw channel data from DB: {raw_channels}")
+        print(f"[GET_CHANNELS] Channel objects: {[(ch.id, ch.title) for ch in channels]}")
         print(f"[GET_CHANNELS] Returning {len(channels)} channels")
         return channels
 
@@ -261,12 +267,19 @@ def delete_channel(channel_id: int):
         total_channels = cursor.fetchone()[0]
         print(f"[DELETE] Total channels in DB before deletion: {total_channels}")
 
+        # List ALL channels in database to debug
+        cursor.execute("SELECT id, title FROM channels")
+        all_channels = cursor.fetchall()
+        print(f"[DELETE] All channels in DB: {all_channels}")
+
         # First check if channel exists
         cursor.execute("SELECT id, title FROM channels WHERE id = ?", (channel_id,))
         channel = cursor.fetchone()
+        print(f"[DELETE] Query result for channel_id={channel_id}: {channel}")
 
         if not channel:
             print(f"[DELETE] WARNING: Channel {channel_id} does not exist in database!")
+            print(f"[DELETE] Available channel IDs: {[ch[0] for ch in all_channels]}")
             # Return special status to indicate channel was already deleted
             return "already_deleted"
 
