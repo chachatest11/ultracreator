@@ -209,27 +209,44 @@ st.dataframe(
     }
 )
 
-# Quick delete below table
-col_label, col_select, col_delete = st.columns([1, 4, 1])
-with col_label:
-    st.markdown("**빠른 삭제:**")
-with col_select:
-    quick_delete_channel = st.selectbox(
-        "채널 선택",
-        df['채널명'].tolist(),
-        key="quick_delete_select",
-        label_visibility="collapsed"
-    )
-with col_delete:
-    quick_delete_id = df[df['채널명'] == quick_delete_channel]['ID'].iloc[0]
-    if st.button("🗑️", key="quick_delete_btn", use_container_width=True, help=f"'{quick_delete_channel}' 삭제"):
-        try:
-            db.delete_channel(quick_delete_id)
-            st.success(f"✓ '{quick_delete_channel}' 채널이 삭제되었습니다!")
-            st.session_state.refresh_trigger += 1
-            st.rerun()
-        except Exception as e:
-            st.error(f"✗ 삭제 실패: {str(e)}")
+# Quick delete - Channel list with delete buttons
+with st.expander("🗑️ 채널 삭제", expanded=False):
+    st.caption("채널 옆의 삭제 버튼을 클릭하여 즉시 삭제할 수 있습니다.")
+
+    # Display channels in a compact grid
+    for idx in range(0, len(df), 2):  # 2 columns per row
+        cols = st.columns([5, 1, 5, 1])
+
+        # First channel in row
+        with cols[0]:
+            channel_name = df.iloc[idx]['채널명']
+            st.markdown(f"**{channel_name}**")
+        with cols[1]:
+            channel_id = df.iloc[idx]['ID']
+            if st.button("🗑️", key=f"del_{channel_id}", help=f"'{channel_name}' 삭제"):
+                try:
+                    db.delete_channel(channel_id)
+                    st.success(f"✓ '{channel_name}' 삭제됨")
+                    st.session_state.refresh_trigger += 1
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"✗ 삭제 실패: {str(e)}")
+
+        # Second channel in row (if exists)
+        if idx + 1 < len(df):
+            with cols[2]:
+                channel_name = df.iloc[idx + 1]['채널명']
+                st.markdown(f"**{channel_name}**")
+            with cols[3]:
+                channel_id = df.iloc[idx + 1]['ID']
+                if st.button("🗑️", key=f"del_{channel_id}", help=f"'{channel_name}' 삭제"):
+                    try:
+                        db.delete_channel(channel_id)
+                        st.success(f"✓ '{channel_name}' 삭제됨")
+                        st.session_state.refresh_trigger += 1
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"✗ 삭제 실패: {str(e)}")
 
 st.markdown("---")
 
