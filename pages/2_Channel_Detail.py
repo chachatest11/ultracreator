@@ -30,7 +30,7 @@ def show_video_player(video_id, video_title):
     col1, col2 = st.columns([1, 1])
 
     with col1:
-        if st.button("📥 영상 다운로드", use_container_width=True, type="primary"):
+        if st.button("📥 영상 다운로드", width="stretch", type="primary"):
             with st.spinner("영상을 다운로드하는 중... (시간이 걸릴 수 있습니다)"):
                 try:
                     # Create temporary directory
@@ -98,7 +98,7 @@ def show_video_player(video_id, video_title):
                             data=video_bytes,
                             file_name=f"{video_title[:50]}.mp4",
                             mime="video/mp4",
-                            use_container_width=True
+                            width="stretch"
                         )
                         st.success("✅ 다운로드 완료! 위 버튼을 클릭하여 저장하세요.")
 
@@ -113,7 +113,7 @@ def show_video_player(video_id, video_title):
                     st.caption("3. 오디오만 제공되는 영상이거나 라이브 스트림일 수 있습니다.")
 
     with col2:
-        if st.button("❌ 닫기", use_container_width=True):
+        if st.button("❌ 닫기", width="stretch"):
             st.rerun()
 
 
@@ -283,13 +283,13 @@ else:
                     # Thumbnail - clickable
                     thumbnail_url = video.thumbnail_url or f"https://img.youtube.com/vi/{video.youtube_video_id}/hqdefault.jpg"
 
-                    st.image(thumbnail_url, use_container_width=True)
+                    st.image(thumbnail_url, width="stretch")
 
                     # Clickable thumbnail button
                     if st.button(
                         "▶️ 재생",
                         key=f"play_{video.youtube_video_id}",
-                        use_container_width=True
+                        width="stretch"
                     ):
                         show_video_player(video.youtube_video_id, video.title)
 
@@ -333,7 +333,7 @@ else:
 
         st.dataframe(
             df,
-            use_container_width=True,
+            width="stretch",
             hide_index=True,
             column_config={
                 "조회수": st.column_config.NumberColumn(format="%d"),
@@ -371,7 +371,7 @@ else:
             title="조회수 분포",
             labels={"조회수": "조회수", "count": "영상 수"}
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
     with col2:
         # Views by video type
@@ -382,7 +382,7 @@ else:
             names="유형",
             title="유형별 총 조회수"
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
     # Timeline chart
     st.markdown("#### 시간별 조회수 추이")
@@ -421,7 +421,7 @@ else:
         hovermode='x unified'
     )
 
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
     # Upload pattern charts
     st.markdown("---")
@@ -444,7 +444,7 @@ else:
                 title="요일별 업로드 비율",
                 labels={"x": "요일", "y": "비율 (%)"}
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
 
     with col2:
         # Hour distribution
@@ -458,7 +458,7 @@ else:
                 title="시간대별 업로드 비율 (KST)",
                 labels={"x": "시간 (시)", "y": "비율 (%)"}
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
 
 # Similar Channels
 st.markdown("---")
@@ -503,7 +503,7 @@ with col3:
 col1, col2 = st.columns([1, 5])
 
 with col1:
-    if st.button("🔍 유사 채널 찾기", type="primary", use_container_width=True):
+    if st.button("🔍 유사 채널 찾기", type="primary", width="stretch"):
         st.session_state.similar_channels_loading = True
         st.session_state.similar_channels_data = None
 
@@ -608,7 +608,7 @@ if st.session_state.similar_channels_data is not None:
                             # Check if channel already exists
                             existing = db.get_channel_by_youtube_id(ch['channel_id'])
                             if not existing:
-                                if st.button("➕", key=f"add_{ch['channel_id']}", help="Dashboard에 채널 추가", use_container_width=True):
+                                if st.button("➕", key=f"add_{ch['channel_id']}", help="Dashboard에 채널 추가", width="stretch"):
                                     with st.spinner(f"{ch['title']} 채널을 추가하는 중..."):
                                         result = jobs.fetch_channel_data(
                                             ch['channel_id'],
@@ -639,7 +639,7 @@ if st.session_state.similar_channels_data is not None:
                     st.caption(f"{ch['confidence_score']}% 신뢰도")
 
                     # Action buttons
-                    if st.button("📊 채널 분석", key=f"analyze_{ch['channel_id']}", use_container_width=True):
+                    if st.button("📊 채널 분석", key=f"analyze_{ch['channel_id']}", width="stretch"):
                         # Check if channel already exists in database
                         existing = db.get_channel_by_youtube_id(ch['channel_id'])
                         if existing:

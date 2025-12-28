@@ -23,7 +23,7 @@ with st.sidebar:
     st.subheader("새 워치리스트")
     new_watchlist_name = st.text_input("워치리스트 이름")
 
-    if st.button("생성", use_container_width=True):
+    if st.button("생성", width="stretch"):
         if new_watchlist_name:
             try:
                 db.create_watchlist(new_watchlist_name)
@@ -48,7 +48,7 @@ with st.sidebar:
             key="delete_watchlist"
         )
 
-        if st.button("삭제", use_container_width=True, type="secondary"):
+        if st.button("삭제", width="stretch", type="secondary"):
             delete_wl = next(wl for wl in watchlists if wl.name == delete_watchlist)
             db.delete_watchlist(delete_wl.id)
             st.success(f"✓ '{delete_watchlist}' 워치리스트가 삭제되었습니다!")
@@ -94,7 +94,7 @@ with col1:
             key="add_channels"
         )
 
-        if st.button("추가", use_container_width=True):
+        if st.button("추가", width="stretch"):
             if add_channels:
                 for channel_title in add_channels:
                     add_ch = next(ch for ch in available_channels if ch.title == channel_title)
@@ -117,7 +117,7 @@ with col2:
             key="remove_channels"
         )
 
-        if st.button("제거", use_container_width=True, type="secondary"):
+        if st.button("제거", width="stretch", type="secondary"):
             if remove_channels:
                 for channel_title in remove_channels:
                     remove_ch = next(ch for ch in watchlist_channels if ch.title == channel_title)
@@ -197,7 +197,7 @@ df = df.sort_values(sort_by, ascending=ascending)
 # Display table
 st.dataframe(
     df,
-    use_container_width=True,
+    width="stretch",
     hide_index=True,
     column_config={
         "YouTube": st.column_config.LinkColumn(
@@ -232,7 +232,7 @@ with tab1:
             labels={"채널명": "채널", "구독자수": "구독자"}
         )
         fig.update_xaxes(tickangle=-45)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
     with col2:
         # Average views comparison
@@ -244,7 +244,7 @@ with tab1:
             labels={"채널명": "채널", "평균 조회수": "평균 조회수"}
         )
         fig.update_xaxes(tickangle=-45)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
     # Growth comparison
     col1, col2 = st.columns(2)
@@ -258,7 +258,7 @@ with tab1:
             labels={"채널명": "채널", "7일 성장": "성장 수"}
         )
         fig.update_xaxes(tickangle=-45)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
     with col2:
         fig = px.bar(
@@ -269,7 +269,7 @@ with tab1:
             labels={"채널명": "채널", "30일 성장": "성장 수"}
         )
         fig.update_xaxes(tickangle=-45)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
 with tab2:
     st.markdown("#### 업로드 패턴 분석")
@@ -286,7 +286,7 @@ with tab2:
             labels={"채널명": "채널", "업로드 주기": "평균 일수"}
         )
         fig.update_xaxes(tickangle=-45)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
         st.caption("숫자가 작을수록 자주 업로드함")
 
@@ -300,7 +300,7 @@ with tab2:
             labels={"채널명": "채널", "제목 길이": "평균 문자 수"}
         )
         fig.update_xaxes(tickangle=-45)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
     # Day and hour patterns
     st.markdown("#### 요일 & 시간대 분포")
@@ -317,7 +317,7 @@ with tab2:
                 names=day_summary.index,
                 title="채널들이 가장 많이 올리는 요일"
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
 
     with col2:
         if not hour_summary.empty:
@@ -327,7 +327,7 @@ with tab2:
                 title="채널들이 가장 많이 올리는 시간대 (KST)",
                 labels={"x": "시간 (시)", "y": "채널 수"}
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
 
 with tab3:
     st.markdown("#### Shorts 분석")
@@ -344,7 +344,7 @@ with tab3:
             labels={"채널명": "채널", "Shorts 비중": "비중 (%)"}
         )
         fig.update_xaxes(tickangle=-45)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
     with col2:
         # Top5 concentration
@@ -356,7 +356,7 @@ with tab3:
             labels={"채널명": "채널", "Top5 집중도": "집중도 (%)"}
         )
         fig.update_xaxes(tickangle=-45)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
         st.caption("높을수록 특정 영상에 조회수가 집중됨")
 
@@ -372,7 +372,7 @@ with tab3:
         labels={"Shorts 비중": "Shorts 비중 (%)", "평균 조회수": "평균 조회수"}
     )
     fig.update_traces(textposition='top center')
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
 # Summary insights
 st.markdown("---")

@@ -26,7 +26,7 @@ with st.sidebar:
         placeholder="UC..., @username, https://youtube.com/@..."
     )
 
-    if st.button("채널 추가", type="primary", use_container_width=True):
+    if st.button("채널 추가", type="primary", width="stretch"):
         if channel_input:
             with st.spinner("채널 데이터를 수집하는 중..."):
                 progress_placeholder = st.empty()
@@ -52,7 +52,7 @@ with st.sidebar:
     st.markdown("---")
 
     st.header("🔄 전체 갱신")
-    if st.button("모든 채널 갱신", use_container_width=True):
+    if st.button("모든 채널 갱신", width="stretch"):
         with st.spinner("모든 채널을 갱신하는 중..."):
             progress_placeholder = st.empty()
 
@@ -194,7 +194,7 @@ with col4:
 # Display table
 st.dataframe(
     df,
-    use_container_width=True,
+    width="stretch",
     hide_index=True,
     column_config={
         "ID": None,  # Hide ID column
@@ -269,13 +269,13 @@ selected_channel_id = df[df['채널명'] == selected_channel_name]['ID'].iloc[0]
 col1, col2, col3 = st.columns(3)
 
 with col1:
-    if st.button("📊 상세 보기", use_container_width=True):
+    if st.button("📊 상세 보기", width="stretch"):
         st.switch_page("pages/2_Channel_Detail.py")
         # Store selected channel in session state
         st.session_state.selected_channel_id = selected_channel_id
 
 with col2:
-    if st.button("🔄 채널 갱신", use_container_width=True):
+    if st.button("🔄 채널 갱신", width="stretch"):
         with st.spinner("채널을 갱신하는 중..."):
             progress_placeholder = st.empty()
 
@@ -300,7 +300,7 @@ with col3:
         st.warning(f"⚠️ '{selected_channel_name}' 채널을 삭제하시겠습니까?")
         col_yes, col_no = st.columns(2)
         with col_yes:
-            if st.button("✓ 삭제", key="confirm_delete", use_container_width=True, type="primary"):
+            if st.button("✓ 삭제", key="confirm_delete", width="stretch", type="primary"):
                 try:
                     result = db.delete_channel(selected_channel_id)
                     st.session_state.confirm_delete_channel_id = None
@@ -314,11 +314,11 @@ with col3:
                     st.error(f"✗ 삭제 실패: {str(e)}")
                     st.session_state.confirm_delete_channel_id = None
         with col_no:
-            if st.button("✗ 취소", key="cancel_delete", use_container_width=True):
+            if st.button("✗ 취소", key="cancel_delete", width="stretch"):
                 st.session_state.confirm_delete_channel_id = None
                 st.rerun()
     else:
-        if st.button("🗑️ 채널 삭제", use_container_width=True, type="secondary"):
+        if st.button("🗑️ 채널 삭제", width="stretch", type="secondary"):
             st.session_state.confirm_delete_channel_id = selected_channel_id
             st.rerun()
 

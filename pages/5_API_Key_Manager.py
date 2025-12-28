@@ -65,7 +65,7 @@ with col2:
 col1, col2, col3 = st.columns([1, 1, 3])
 
 with col1:
-    if st.button("➕ 키 추가", type="primary", use_container_width=True):
+    if st.button("➕ 키 추가", type="primary", width="stretch"):
         if new_key:
             if storage.add_key(new_key, key_name):
                 st.success(f"✓ API 키가 추가되었습니다: {key_name or '(이름 없음)'}")
@@ -78,7 +78,7 @@ with col1:
 
 with col2:
     # Bulk import
-    if st.button("📥 일괄 가져오기", use_container_width=True):
+    if st.button("📥 일괄 가져오기", width="stretch"):
         st.session_state.show_import = True
 
 # Bulk import dialog
@@ -93,9 +93,9 @@ if st.session_state.get('show_import', False):
 
         col1, col2 = st.columns(2)
         with col1:
-            submit = st.form_submit_button("가져오기", type="primary", use_container_width=True)
+            submit = st.form_submit_button("가져오기", type="primary", width="stretch")
         with col2:
-            cancel = st.form_submit_button("취소", use_container_width=True)
+            cancel = st.form_submit_button("취소", width="stretch")
 
         if submit and bulk_keys:
             added_count = storage.import_keys_from_string(bulk_keys)
@@ -176,13 +176,13 @@ else:
 
                 # Toggle enable/disable
                 if key_data['enabled']:
-                    if st.button("비활성화", key=f"disable_{key_data['id']}", use_container_width=True):
+                    if st.button("비활성화", key=f"disable_{key_data['id']}", width="stretch"):
                         storage.toggle_key(key_data['id'], False)
                         st.success("키가 비활성화되었습니다.")
                         st.session_state.refresh_trigger += 1
                         st.rerun()
                 else:
-                    if st.button("활성화", key=f"enable_{key_data['id']}", type="primary", use_container_width=True):
+                    if st.button("활성화", key=f"enable_{key_data['id']}", type="primary", width="stretch"):
                         storage.toggle_key(key_data['id'], True)
                         st.success("키가 활성화되었습니다.")
                         st.session_state.refresh_trigger += 1
@@ -192,12 +192,12 @@ else:
                 st.markdown("**관리**")
 
                 # Rename button
-                if st.button("이름 변경", key=f"rename_{key_data['id']}", use_container_width=True):
+                if st.button("이름 변경", key=f"rename_{key_data['id']}", width="stretch"):
                     st.session_state[f"rename_mode_{key_data['id']}"] = True
                     st.rerun()
 
                 # Delete button
-                if st.button("🗑️ 삭제", key=f"delete_{key_data['id']}", use_container_width=True):
+                if st.button("🗑️ 삭제", key=f"delete_{key_data['id']}", width="stretch"):
                     st.session_state[f"confirm_delete_{key_data['id']}"] = True
                     st.rerun()
 
@@ -207,14 +207,14 @@ else:
                     new_name = st.text_input("새 이름", value=key_data['name'])
                     col1, col2 = st.columns(2)
                     with col1:
-                        if st.form_submit_button("저장", type="primary", use_container_width=True):
+                        if st.form_submit_button("저장", type="primary", width="stretch"):
                             storage.rename_key(key_data['id'], new_name)
                             st.session_state[f"rename_mode_{key_data['id']}"] = False
                             st.success("이름이 변경되었습니다.")
                             st.session_state.refresh_trigger += 1
                             st.rerun()
                     with col2:
-                        if st.form_submit_button("취소", use_container_width=True):
+                        if st.form_submit_button("취소", width="stretch"):
                             st.session_state[f"rename_mode_{key_data['id']}"] = False
                             st.rerun()
 
@@ -223,14 +223,14 @@ else:
                 st.warning(f"⚠️ 정말로 '{key_data['name']}' 키를 삭제하시겠습니까?")
                 col1, col2, col3 = st.columns([1, 1, 2])
                 with col1:
-                    if st.button("✓ 삭제", key=f"confirm_yes_{key_data['id']}", type="primary", use_container_width=True):
+                    if st.button("✓ 삭제", key=f"confirm_yes_{key_data['id']}", type="primary", width="stretch"):
                         storage.remove_key(key_data['id'])
                         st.session_state[f"confirm_delete_{key_data['id']}"] = False
                         st.success("키가 삭제되었습니다.")
                         st.session_state.refresh_trigger += 1
                         st.rerun()
                 with col2:
-                    if st.button("✗ 취소", key=f"confirm_no_{key_data['id']}", use_container_width=True):
+                    if st.button("✗ 취소", key=f"confirm_no_{key_data['id']}", width="stretch"):
                         st.session_state[f"confirm_delete_{key_data['id']}"] = False
                         st.rerun()
 
@@ -243,16 +243,16 @@ st.subheader("⚙️ 고급 작업")
 col1, col2, col3 = st.columns(3)
 
 with col1:
-    if st.button("🔄 현재 상태 새로고침", use_container_width=True):
+    if st.button("🔄 현재 상태 새로고침", width="stretch"):
         st.session_state.refresh_trigger += 1
         st.rerun()
 
 with col2:
-    if st.button("📊 키 상태 요약", use_container_width=True):
+    if st.button("📊 키 상태 요약", width="stretch"):
         st.session_state.show_summary = True
 
 with col3:
-    if st.button("🗑️ 모든 키 삭제", type="secondary", use_container_width=True):
+    if st.button("🗑️ 모든 키 삭제", type="secondary", width="stretch"):
         st.session_state.confirm_clear_all = True
 
 # Summary dialog
@@ -271,7 +271,7 @@ if st.session_state.get('show_summary', False):
 
     if summary_data:
         df = pd.DataFrame(summary_data)
-        st.dataframe(df, use_container_width=True, hide_index=True)
+        st.dataframe(df, width="stretch", hide_index=True)
 
     if st.button("닫기"):
         st.session_state.show_summary = False
@@ -282,14 +282,14 @@ if st.session_state.get('confirm_clear_all', False):
     st.error("⚠️ 경고: 모든 키를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다!")
     col1, col2, col3 = st.columns([1, 1, 2])
     with col1:
-        if st.button("✓ 모두 삭제", type="primary", use_container_width=True):
+        if st.button("✓ 모두 삭제", type="primary", width="stretch"):
             storage.clear_all_keys()
             st.session_state.confirm_clear_all = False
             st.success("모든 키가 삭제되었습니다.")
             st.session_state.refresh_trigger += 1
             st.rerun()
     with col2:
-        if st.button("✗ 취소", use_container_width=True):
+        if st.button("✗ 취소", width="stretch"):
             st.session_state.confirm_clear_all = False
             st.rerun()
 

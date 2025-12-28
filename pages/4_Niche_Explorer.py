@@ -57,7 +57,7 @@ with col4:
     )
 
 # Search button
-if st.button("🚀 탐색 시작", type="primary", use_container_width=True):
+if st.button("🚀 탐색 시작", type="primary", width="stretch"):
     if not keyword:
         st.error("키워드를 입력해주세요.")
     else:
@@ -157,7 +157,7 @@ if st.session_state.niche_run_id:
 
         st.dataframe(
             df,
-            use_container_width=True,
+            width="stretch",
             hide_index=True,
             column_config={
                 "중앙 조회수": st.column_config.NumberColumn(format="%d"),
@@ -191,7 +191,7 @@ if st.session_state.niche_run_id:
                 labels={"종합 점수": "점수"},
                 color_continuous_scale="RdYlGn"
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
 
             st.markdown("#### 점수 구성 요소")
 
@@ -215,7 +215,7 @@ if st.session_state.niche_run_id:
                 barmode="group",
                 title="클러스터별 점수 구성 요소"
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
 
         with tab2:
             # Performance vs Competition scatter
@@ -242,7 +242,7 @@ if st.session_state.niche_run_id:
                 color_continuous_scale="RdYlGn"
             )
             fig.update_traces(textposition='top center')
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
 
             st.caption("오른쪽 위: 높은 성과 + 높은 경쟁 | 왼쪽 위: 높은 성과 + 낮은 경쟁 (최적)")
 
@@ -255,7 +255,7 @@ if st.session_state.niche_run_id:
                 title="클러스터별 Shorts 비중",
                 labels={"Shorts 비중": "비중"}
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
 
             # Video count vs Shorts ratio
             video_shorts_data = []
@@ -277,7 +277,7 @@ if st.session_state.niche_run_id:
                 labels={"영상 수": "영상 수", "Shorts 비중": "Shorts 비중 (%)"}
             )
             fig.update_traces(textposition='top center')
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
 
         # Detailed cluster view
         st.markdown("---")
@@ -340,7 +340,7 @@ if st.session_state.niche_run_id:
 
             st.dataframe(
                 video_df,
-                use_container_width=True,
+                width="stretch",
                 hide_index=True,
                 column_config={
                     "조회수": st.column_config.NumberColumn(format="%d"),
@@ -367,7 +367,7 @@ if st.session_state.niche_run_id:
 
             st.dataframe(
                 channel_df,
-                use_container_width=True,
+                width="stretch",
                 hide_index=True,
                 column_config={
                     "YouTube 링크": st.column_config.LinkColumn("링크")
@@ -453,7 +453,7 @@ if st.session_state.niche_run_id:
 
                 st.dataframe(
                     videos_df,
-                    use_container_width=True,
+                    width="stretch",
                     hide_index=True,
                     column_config={
                         "조회수": st.column_config.NumberColumn(format="%d"),
