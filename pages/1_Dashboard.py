@@ -225,8 +225,11 @@ with st.expander("🗑️ 채널 삭제", expanded=False):
             channel_id = df.iloc[idx]['ID']
             if st.button("🗑️", key=f"del_{channel_id}", help=f"'{channel_name}' 삭제"):
                 try:
-                    db.delete_channel(channel_id)
-                    st.success(f"✓ '{channel_name}' 삭제됨")
+                    result = db.delete_channel(channel_id)
+                    if result == "already_deleted":
+                        st.warning(f"⚠️ '{channel_name}'은(는) 이미 삭제되었습니다. 새로고침합니다.")
+                    else:
+                        st.success(f"✓ '{channel_name}' 삭제됨")
                     st.session_state.refresh_trigger += 1
                     st.rerun()
                 except Exception as e:
@@ -241,8 +244,11 @@ with st.expander("🗑️ 채널 삭제", expanded=False):
                 channel_id = df.iloc[idx + 1]['ID']
                 if st.button("🗑️", key=f"del_{channel_id}", help=f"'{channel_name}' 삭제"):
                     try:
-                        db.delete_channel(channel_id)
-                        st.success(f"✓ '{channel_name}' 삭제됨")
+                        result = db.delete_channel(channel_id)
+                        if result == "already_deleted":
+                            st.warning(f"⚠️ '{channel_name}'은(는) 이미 삭제되었습니다. 새로고침합니다.")
+                        else:
+                            st.success(f"✓ '{channel_name}' 삭제됨")
                         st.session_state.refresh_trigger += 1
                         st.rerun()
                     except Exception as e:
@@ -296,9 +302,12 @@ with col3:
         with col_yes:
             if st.button("✓ 삭제", key="confirm_delete", use_container_width=True, type="primary"):
                 try:
-                    db.delete_channel(selected_channel_id)
+                    result = db.delete_channel(selected_channel_id)
                     st.session_state.confirm_delete_channel_id = None
-                    st.success("✓ 채널이 삭제되었습니다!")
+                    if result == "already_deleted":
+                        st.warning(f"⚠️ '{selected_channel_name}'은(는) 이미 삭제되었습니다. 새로고침합니다.")
+                    else:
+                        st.success("✓ 채널이 삭제되었습니다!")
                     st.session_state.refresh_trigger += 1
                     st.rerun()
                 except Exception as e:

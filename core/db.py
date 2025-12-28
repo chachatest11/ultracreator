@@ -237,8 +237,19 @@ def delete_channel(channel_id: int):
     try:
         cursor = conn.cursor()
 
-        # First, manually delete related records to avoid foreign key issues
+        print(f"[DELETE] DB Path: {DB_PATH}")
         print(f"[DELETE] Starting deletion for channel_id: {channel_id}")
+
+        # First check if channel exists
+        cursor.execute("SELECT id, title FROM channels WHERE id = ?", (channel_id,))
+        channel = cursor.fetchone()
+
+        if not channel:
+            print(f"[DELETE] WARNING: Channel {channel_id} does not exist in database!")
+            # Return special status to indicate channel was already deleted
+            return "already_deleted"
+
+        print(f"[DELETE] Found channel: id={channel[0]}, title={channel[1]}")
 
         # Delete video snapshots
         cursor.execute("""
@@ -264,9 +275,12 @@ def delete_channel(channel_id: int):
         deleted_count = cursor.rowcount
         print(f"[DELETE] Deleted {deleted_count} channels")
 
+        if deleted_count == 0:
+            raise Exception(f"Failed to delete channel {channel_id} - rowcount is 0")
+
         # Commit the transaction
         conn.commit()
-        print(f"[DELETE] Transaction committed")
+        print(f"[DELETE] Transaction committed successfully")
 
         # Verify deletion
         cursor.execute("SELECT COUNT(*) FROM channels WHERE id = ?", (channel_id,))
