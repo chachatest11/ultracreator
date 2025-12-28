@@ -209,6 +209,27 @@ st.dataframe(
     }
 )
 
+# Quick delete below table
+col_label, col_select, col_delete = st.columns([1, 4, 1])
+with col_label:
+    st.markdown("**빠른 삭제:**")
+with col_select:
+    quick_delete_channel = st.selectbox(
+        "채널 선택",
+        df['채널명'].tolist(),
+        key="quick_delete_select",
+        label_visibility="collapsed"
+    )
+with col_delete:
+    quick_delete_id = df[df['채널명'] == quick_delete_channel]['ID'].iloc[0]
+    if st.button("🗑️", key="quick_delete_btn", use_container_width=True, help=f"'{quick_delete_channel}' 삭제"):
+        db.delete_channel(quick_delete_id)
+        st.success(f"✓ '{quick_delete_channel}' 채널이 삭제되었습니다!")
+        st.session_state.refresh_trigger += 1
+        st.rerun()
+
+st.markdown("---")
+
 # Channel actions
 st.subheader("🔧 채널 작업")
 
