@@ -231,29 +231,59 @@ def get_all_channels() -> List[Channel]:
 
 def delete_channel(channel_id: int):
     """Delete channel and all related data"""
-    with get_db() as conn:
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute("PRAGMA foreign_keys = ON")
+
+    try:
         cursor = conn.cursor()
 
         # First, manually delete related records to avoid foreign key issues
+        print(f"[DELETE] Starting deletion for channel_id: {channel_id}")
+
         # Delete video snapshots
         cursor.execute("""
             DELETE FROM video_snapshots
             WHERE video_id IN (SELECT id FROM videos WHERE channel_id = ?)
         """, (channel_id,))
+        print(f"[DELETE] Deleted {cursor.rowcount} video snapshots")
 
         # Delete videos
         cursor.execute("DELETE FROM videos WHERE channel_id = ?", (channel_id,))
+        print(f"[DELETE] Deleted {cursor.rowcount} videos")
 
         # Delete channel snapshots
         cursor.execute("DELETE FROM channel_snapshots WHERE channel_id = ?", (channel_id,))
+        print(f"[DELETE] Deleted {cursor.rowcount} channel snapshots")
 
         # Delete watchlist associations
         cursor.execute("DELETE FROM watchlist_channels WHERE channel_id = ?", (channel_id,))
+        print(f"[DELETE] Deleted {cursor.rowcount} watchlist associations")
 
         # Finally, delete the channel
         cursor.execute("DELETE FROM channels WHERE id = ?", (channel_id,))
+        deleted_count = cursor.rowcount
+        print(f"[DELETE] Deleted {deleted_count} channels")
+
+        # Commit the transaction
+        conn.commit()
+        print(f"[DELETE] Transaction committed")
+
+        # Verify deletion
+        cursor.execute("SELECT COUNT(*) FROM channels WHERE id = ?", (channel_id,))
+        remaining = cursor.fetchone()[0]
+        print(f"[DELETE] Verification - remaining channels with id {channel_id}: {remaining}")
+
+        if remaining > 0:
+            raise Exception(f"Channel {channel_id} still exists after deletion!")
 
         return True
+
+    except Exception as e:
+        conn.rollback()
+        print(f"[DELETE] Error occurred, rolled back: {e}")
+        raise
+    finally:
+        conn.close()
 
 
 def should_fetch_channel(youtube_channel_id: str, hours: int = 12) -> bool:
