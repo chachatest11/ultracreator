@@ -231,27 +231,29 @@ def get_all_channels() -> List[Channel]:
 
 def delete_channel(channel_id: int):
     """Delete channel and all related data"""
-    try:
-        with get_db() as conn:
-            cursor = conn.cursor()
+    with get_db() as conn:
+        cursor = conn.cursor()
 
-            # Check if channel exists
-            cursor.execute("SELECT id, title FROM channels WHERE id = ?", (channel_id,))
-            channel = cursor.fetchone()
-            if not channel:
-                raise ValueError(f"Channel with id {channel_id} not found")
+        # First, manually delete related records to avoid foreign key issues
+        # Delete video snapshots
+        cursor.execute("""
+            DELETE FROM video_snapshots
+            WHERE video_id IN (SELECT id FROM videos WHERE channel_id = ?)
+        """, (channel_id,))
 
-            # Delete channel (CASCADE will handle related data)
-            cursor.execute("DELETE FROM channels WHERE id = ?", (channel_id,))
-            deleted_count = cursor.rowcount
+        # Delete videos
+        cursor.execute("DELETE FROM videos WHERE channel_id = ?", (channel_id,))
 
-            if deleted_count == 0:
-                raise ValueError(f"Failed to delete channel {channel_id}")
+        # Delete channel snapshots
+        cursor.execute("DELETE FROM channel_snapshots WHERE channel_id = ?", (channel_id,))
 
-            return True
-    except Exception as e:
-        print(f"Error deleting channel {channel_id}: {e}")
-        raise
+        # Delete watchlist associations
+        cursor.execute("DELETE FROM watchlist_channels WHERE channel_id = ?", (channel_id,))
+
+        # Finally, delete the channel
+        cursor.execute("DELETE FROM channels WHERE id = ?", (channel_id,))
+
+        return True
 
 
 def should_fetch_channel(youtube_channel_id: str, hours: int = 12) -> bool:
