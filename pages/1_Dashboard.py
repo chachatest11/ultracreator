@@ -14,6 +14,8 @@ st.markdown("관심 채널 관리 및 주요 지표 모니터링")
 # Initialize session state
 if 'refresh_trigger' not in st.session_state:
     st.session_state.refresh_trigger = 0
+if 'confirm_delete_channel_id' not in st.session_state:
+    st.session_state.confirm_delete_channel_id = None
 
 # Sidebar - Add Channel
 with st.sidebar:
@@ -246,12 +248,24 @@ with col2:
                 st.error("✗ 채널 갱신에 실패했습니다.")
 
 with col3:
-    if st.button("🗑️ 채널 삭제", use_container_width=True, type="secondary"):
-        # Confirmation
-        if st.checkbox(f"정말로 '{selected_channel_name}' 채널을 삭제하시겠습니까?"):
-            db.delete_channel(selected_channel_id)
-            st.success("✓ 채널이 삭제되었습니다!")
-            st.session_state.refresh_trigger += 1
+    # Check if we're in delete confirmation mode for this channel
+    if st.session_state.confirm_delete_channel_id == selected_channel_id:
+        st.warning(f"⚠️ '{selected_channel_name}' 채널을 삭제하시겠습니까?")
+        col_yes, col_no = st.columns(2)
+        with col_yes:
+            if st.button("✓ 삭제", key="confirm_delete", use_container_width=True, type="primary"):
+                db.delete_channel(selected_channel_id)
+                st.session_state.confirm_delete_channel_id = None
+                st.success("✓ 채널이 삭제되었습니다!")
+                st.session_state.refresh_trigger += 1
+                st.rerun()
+        with col_no:
+            if st.button("✗ 취소", key="cancel_delete", use_container_width=True):
+                st.session_state.confirm_delete_channel_id = None
+                st.rerun()
+    else:
+        if st.button("🗑️ 채널 삭제", use_container_width=True, type="secondary"):
+            st.session_state.confirm_delete_channel_id = selected_channel_id
             st.rerun()
 
 # Footer
