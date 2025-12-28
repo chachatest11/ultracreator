@@ -2,6 +2,7 @@
 Database operations for YouTube analytics app
 """
 import sqlite3
+import os
 from datetime import datetime, timedelta
 from typing import List, Optional, Dict, Any, Tuple
 from contextlib import contextmanager
@@ -223,22 +224,42 @@ def get_channel_by_youtube_id(youtube_channel_id: str) -> Optional[Channel]:
 
 def get_all_channels() -> List[Channel]:
     """Get all channels"""
+    print(f"[GET_CHANNELS] DB Path (relative): {DB_PATH}")
+    print(f"[GET_CHANNELS] DB Path (absolute): {os.path.abspath(DB_PATH)}")
+    print(f"[GET_CHANNELS] Current working directory: {os.getcwd()}")
+
     with get_db() as conn:
         cursor = conn.cursor()
+
+        # First check total count
+        cursor.execute("SELECT COUNT(*) FROM channels")
+        total_count = cursor.fetchone()[0]
+        print(f"[GET_CHANNELS] Total channels in DB: {total_count}")
+
         cursor.execute("SELECT * FROM channels ORDER BY created_at DESC")
-        return [Channel.from_db_row(row) for row in cursor.fetchall()]
+        channels = [Channel.from_db_row(row) for row in cursor.fetchall()]
+
+        print(f"[GET_CHANNELS] Returning {len(channels)} channels")
+        return channels
 
 
 def delete_channel(channel_id: int):
     """Delete channel and all related data"""
+    print(f"[DELETE] DB Path (relative): {DB_PATH}")
+    print(f"[DELETE] DB Path (absolute): {os.path.abspath(DB_PATH)}")
+    print(f"[DELETE] Current working directory: {os.getcwd()}")
+    print(f"[DELETE] Starting deletion for channel_id: {channel_id}")
+
     conn = sqlite3.connect(DB_PATH)
     conn.execute("PRAGMA foreign_keys = ON")
 
     try:
         cursor = conn.cursor()
 
-        print(f"[DELETE] DB Path: {DB_PATH}")
-        print(f"[DELETE] Starting deletion for channel_id: {channel_id}")
+        # Check total channels in database
+        cursor.execute("SELECT COUNT(*) FROM channels")
+        total_channels = cursor.fetchone()[0]
+        print(f"[DELETE] Total channels in DB before deletion: {total_channels}")
 
         # First check if channel exists
         cursor.execute("SELECT id, title FROM channels WHERE id = ?", (channel_id,))
