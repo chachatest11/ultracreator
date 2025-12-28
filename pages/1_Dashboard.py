@@ -223,10 +223,13 @@ with col_select:
 with col_delete:
     quick_delete_id = df[df['채널명'] == quick_delete_channel]['ID'].iloc[0]
     if st.button("🗑️", key="quick_delete_btn", use_container_width=True, help=f"'{quick_delete_channel}' 삭제"):
-        db.delete_channel(quick_delete_id)
-        st.success(f"✓ '{quick_delete_channel}' 채널이 삭제되었습니다!")
-        st.session_state.refresh_trigger += 1
-        st.rerun()
+        try:
+            db.delete_channel(quick_delete_id)
+            st.success(f"✓ '{quick_delete_channel}' 채널이 삭제되었습니다!")
+            st.session_state.refresh_trigger += 1
+            st.rerun()
+        except Exception as e:
+            st.error(f"✗ 삭제 실패: {str(e)}")
 
 st.markdown("---")
 
@@ -275,11 +278,15 @@ with col3:
         col_yes, col_no = st.columns(2)
         with col_yes:
             if st.button("✓ 삭제", key="confirm_delete", use_container_width=True, type="primary"):
-                db.delete_channel(selected_channel_id)
-                st.session_state.confirm_delete_channel_id = None
-                st.success("✓ 채널이 삭제되었습니다!")
-                st.session_state.refresh_trigger += 1
-                st.rerun()
+                try:
+                    db.delete_channel(selected_channel_id)
+                    st.session_state.confirm_delete_channel_id = None
+                    st.success("✓ 채널이 삭제되었습니다!")
+                    st.session_state.refresh_trigger += 1
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"✗ 삭제 실패: {str(e)}")
+                    st.session_state.confirm_delete_channel_id = None
         with col_no:
             if st.button("✗ 취소", key="cancel_delete", use_container_width=True):
                 st.session_state.confirm_delete_channel_id = None

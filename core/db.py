@@ -231,9 +231,27 @@ def get_all_channels() -> List[Channel]:
 
 def delete_channel(channel_id: int):
     """Delete channel and all related data"""
-    with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute("DELETE FROM channels WHERE id = ?", (channel_id,))
+    try:
+        with get_db() as conn:
+            cursor = conn.cursor()
+
+            # Check if channel exists
+            cursor.execute("SELECT id, title FROM channels WHERE id = ?", (channel_id,))
+            channel = cursor.fetchone()
+            if not channel:
+                raise ValueError(f"Channel with id {channel_id} not found")
+
+            # Delete channel (CASCADE will handle related data)
+            cursor.execute("DELETE FROM channels WHERE id = ?", (channel_id,))
+            deleted_count = cursor.rowcount
+
+            if deleted_count == 0:
+                raise ValueError(f"Failed to delete channel {channel_id}")
+
+            return True
+    except Exception as e:
+        print(f"Error deleting channel {channel_id}: {e}")
+        raise
 
 
 def should_fetch_channel(youtube_channel_id: str, hours: int = 12) -> bool:
