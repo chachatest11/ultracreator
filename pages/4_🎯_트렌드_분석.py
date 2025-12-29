@@ -4,7 +4,9 @@ Niche Explorer - Keyword-based Niche Discovery
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+from collections import Counter
 from core.niche import NicheExplorer, get_niche_results
+from core import db, jobs
 
 st.set_page_config(page_title="🎯 트렌드 분석", page_icon="🎯", layout="wide")
 
@@ -478,6 +480,201 @@ if st.session_state.niche_run_id:
 
         else:
             st.info("전체 영상 목록은 캐시된 결과에서는 제공되지 않습니다. 새로 탐색을 실행해주세요.")
+
+        # Channel Extraction Section
+        if st.session_state.all_videos:
+            st.markdown("---")
+            st.markdown("---")
+            st.subheader("📺 채널 추출 및 일괄 추가")
+
+            all_videos = st.session_state.all_videos
+
+            # Extract unique channels and their stats
+            channel_stats = {}
+            for video in all_videos:
+                channel_id = video.get('channel_id')
+                channel_title = video.get('channel_title', 'Unknown')
+
+                if not channel_id:
+                    continue
+
+                if channel_id not in channel_stats:
+                    channel_stats[channel_id] = {
+                        'channel_id': channel_id,
+                        'channel_title': channel_title,
+                        'video_count': 0,
+                        'total_views': 0,
+                        'total_likes': 0,
+                        'shorts_count': 0
+                    }
+
+                stats = channel_stats[channel_id]
+                stats['video_count'] += 1
+                stats['total_views'] += video.get('view_count', 0)
+                stats['total_likes'] += video.get('like_count', 0)
+                if video.get('duration_seconds', 0) <= 60:
+                    stats['shorts_count'] += 1
+
+            # Calculate averages
+            channel_list = []
+            for ch_id, stats in channel_stats.items():
+                stats['avg_views'] = int(stats['total_views'] / stats['video_count']) if stats['video_count'] > 0 else 0
+                stats['shorts_ratio'] = stats['shorts_count'] / stats['video_count'] if stats['video_count'] > 0 else 0
+                channel_list.append(stats)
+
+            if channel_list:
+                st.markdown(f"**발견된 고유 채널: {len(channel_list)}개**")
+
+                # Filters
+                col1, col2, col3 = st.columns(3)
+
+                with col1:
+                    min_videos = st.number_input(
+                        "최소 영상 수",
+                        min_value=1,
+                        max_value=50,
+                        value=2,
+                        help="이 검색에서 해당 채널의 영상이 최소 몇 개 이상"
+                    )
+
+                with col2:
+                    min_avg_views = st.number_input(
+                        "최소 평균 조회수",
+                        min_value=0,
+                        max_value=10000000,
+                        value=10000,
+                        step=10000,
+                        help="평균 조회수가 이 값 이상인 채널만"
+                    )
+
+                with col3:
+                    shorts_only = st.checkbox(
+                        "Shorts 위주 채널만 (80% 이상)",
+                        value=False,
+                        help="Shorts 비중이 80% 이상인 채널만 표시"
+                    )
+
+                # Apply filters
+                filtered_channels = [
+                    ch for ch in channel_list
+                    if ch['video_count'] >= min_videos
+                    and ch['avg_views'] >= min_avg_views
+                    and (not shorts_only or ch['shorts_ratio'] >= 0.8)
+                ]
+
+                # Sort by average views
+                filtered_channels.sort(key=lambda x: x['avg_views'], reverse=True)
+
+                st.markdown(f"**필터 결과: {len(filtered_channels)}개 채널**")
+
+                if filtered_channels:
+                    # Check which channels already exist in DB
+                    existing_channels = {ch.youtube_channel_id: ch for ch in db.get_all_channels()}
+
+                    # Build channel table with checkboxes
+                    st.markdown("#### 채널 선택")
+
+                    # Select all checkbox
+                    select_all = st.checkbox("전체 선택", value=False)
+
+                    # Create selection state
+                    if 'selected_channels' not in st.session_state:
+                        st.session_state.selected_channels = set()
+
+                    if select_all:
+                        st.session_state.selected_channels = {ch['channel_id'] for ch in filtered_channels if ch['channel_id'] not in existing_channels}
+
+                    # Display channels
+                    for ch in filtered_channels[:50]:  # Limit to 50 to avoid too many checkboxes
+                        already_exists = ch['channel_id'] in existing_channels
+
+                        col_check, col_info = st.columns([1, 9])
+
+                        with col_check:
+                            if already_exists:
+                                st.markdown("✓")
+                            else:
+                                is_selected = st.checkbox(
+                                    "선택",
+                                    value=ch['channel_id'] in st.session_state.selected_channels,
+                                    key=f"ch_{ch['channel_id']}",
+                                    label_visibility="collapsed"
+                                )
+                                if is_selected:
+                                    st.session_state.selected_channels.add(ch['channel_id'])
+                                else:
+                                    st.session_state.selected_channels.discard(ch['channel_id'])
+
+                        with col_info:
+                            status = " ✅ (이미 추가됨)" if already_exists else ""
+                            st.markdown(
+                                f"**{ch['channel_title']}**{status} | "
+                                f"영상: {ch['video_count']}개 | "
+                                f"평균 조회수: {ch['avg_views']:,} | "
+                                f"Shorts: {ch['shorts_ratio']*100:.0f}% | "
+                                f"[링크](https://youtube.com/channel/{ch['channel_id']})"
+                            )
+
+                    if len(filtered_channels) > 50:
+                        st.info(f"⚠️ 표시 제한: 상위 50개 채널만 표시됩니다. (총 {len(filtered_channels)}개)")
+
+                    # Add selected channels button
+                    st.markdown("---")
+
+                    selected_count = len(st.session_state.selected_channels)
+
+                    if selected_count > 0:
+                        if st.button(f"✅ 선택한 {selected_count}개 채널 추가", type="primary"):
+                            progress_placeholder = st.empty()
+                            status_placeholder = st.empty()
+
+                            success_count = 0
+                            failed_count = 0
+
+                            selected_channel_ids = list(st.session_state.selected_channels)
+
+                            for idx, channel_id in enumerate(selected_channel_ids, 1):
+                                progress_placeholder.progress(
+                                    idx / len(selected_channel_ids),
+                                    text=f"진행 중: {idx}/{len(selected_channel_ids)}"
+                                )
+
+                                try:
+                                    result = jobs.fetch_channel_data(
+                                        channel_id,
+                                        force_refresh=False,
+                                        progress_callback=lambda msg: None
+                                    )
+
+                                    if result:
+                                        success_count += 1
+                                    else:
+                                        failed_count += 1
+
+                                    status_placeholder.info(
+                                        f"✓ {success_count}개 성공, {failed_count}개 실패"
+                                    )
+
+                                except Exception as e:
+                                    failed_count += 1
+                                    status_placeholder.warning(
+                                        f"✓ {success_count}개 성공, {failed_count}개 실패"
+                                    )
+
+                            progress_placeholder.empty()
+                            st.success(f"🎉 완료! {success_count}개 채널이 추가되었습니다.")
+
+                            # Clear selection
+                            st.session_state.selected_channels = set()
+                            st.rerun()
+                    else:
+                        st.info("추가할 채널을 선택해주세요.")
+
+                else:
+                    st.info("필터 조건에 맞는 채널이 없습니다. 필터를 조정해보세요.")
+
+            else:
+                st.warning("채널 정보를 추출할 수 없습니다.")
 
     except Exception as e:
         st.error(f"결과를 불러오는 중 오류가 발생했습니다: {e}")

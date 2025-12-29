@@ -51,6 +51,83 @@ with st.sidebar:
 
     st.markdown("---")
 
+    st.header("📂 CSV 일괄 추가")
+    st.caption("채널 핸들/ID를 한 줄에 하나씩 입력한 CSV 파일")
+
+    uploaded_file = st.file_uploader(
+        "CSV 파일 업로드",
+        type=['csv', 'txt'],
+        help="형식: 각 줄에 @handle 또는 채널ID"
+    )
+
+    if uploaded_file is not None:
+        if st.button("📥 CSV에서 채널 추가", type="primary", width="stretch"):
+            try:
+                # Read CSV file
+                content = uploaded_file.getvalue().decode('utf-8')
+                lines = [line.strip() for line in content.split('\n') if line.strip()]
+
+                # Remove header if exists (contains 'channel', 'handle', 'id', etc.)
+                if lines and any(keyword in lines[0].lower() for keyword in ['channel', 'handle', 'id', 'url']):
+                    lines = lines[1:]
+
+                if not lines:
+                    st.warning("CSV 파일이 비어있습니다.")
+                else:
+                    progress_placeholder = st.empty()
+                    status_placeholder = st.empty()
+
+                    success_count = 0
+                    failed_count = 0
+                    failed_channels = []
+
+                    for idx, channel_input in enumerate(lines, 1):
+                        progress_placeholder.progress(idx / len(lines),
+                            text=f"진행 중: {idx}/{len(lines)} - {channel_input[:30]}...")
+
+                        try:
+                            result = jobs.fetch_channel_data(
+                                channel_input,
+                                force_refresh=False,
+                                progress_callback=lambda msg: None
+                            )
+
+                            if result:
+                                success_count += 1
+                                status_placeholder.success(
+                                    f"✓ {success_count}개 성공, {failed_count}개 실패"
+                                )
+                            else:
+                                failed_count += 1
+                                failed_channels.append(channel_input)
+                                status_placeholder.warning(
+                                    f"✓ {success_count}개 성공, {failed_count}개 실패"
+                                )
+                        except Exception as e:
+                            failed_count += 1
+                            failed_channels.append(f"{channel_input} (오류: {str(e)})")
+                            status_placeholder.warning(
+                                f"✓ {success_count}개 성공, {failed_count}개 실패"
+                            )
+
+                    progress_placeholder.empty()
+
+                    # Final result
+                    st.success(f"🎉 완료! {success_count}개 채널 추가 성공, {failed_count}개 실패")
+
+                    if failed_channels:
+                        with st.expander(f"❌ 실패한 채널 ({failed_count}개)"):
+                            for failed in failed_channels:
+                                st.text(failed)
+
+                    st.session_state.refresh_trigger += 1
+                    st.rerun()
+
+            except Exception as e:
+                st.error(f"CSV 파일 처리 중 오류: {str(e)}")
+
+    st.markdown("---")
+
     st.header("🔄 전체 갱신")
     if st.button("모든 채널 갱신", width="stretch"):
         with st.spinner("모든 채널을 갱신하는 중..."):
