@@ -347,7 +347,7 @@ col1, col2, col3 = st.columns(3)
 
 with col1:
     if st.button("📊 상세 보기", width="stretch"):
-        st.switch_page("pages/2_Channel_Detail.py")
+        st.switch_page("pages/2_📈_상세_분석.py")
         # Store selected channel in session state
         st.session_state.selected_channel_id = selected_channel_id
 
