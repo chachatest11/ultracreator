@@ -6,9 +6,9 @@ import pandas as pd
 import plotly.express as px
 from core import db, metrics
 
-st.set_page_config(page_title="Watchlists", page_icon="📋", layout="wide")
+st.set_page_config(page_title="⭐ 그룹 관리", page_icon="⭐", layout="wide")
 
-st.title("📋 Watchlists")
+st.title("⭐ 그룹 관리")
 st.markdown("채널 그룹 관리 및 비교 분석")
 
 # Initialize session state

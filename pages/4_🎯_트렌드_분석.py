@@ -6,9 +6,9 @@ import pandas as pd
 import plotly.express as px
 from core.niche import NicheExplorer, get_niche_results
 
-st.set_page_config(page_title="Niche Explorer", page_icon="🎯", layout="wide")
+st.set_page_config(page_title="🎯 트렌드 분석", page_icon="🎯", layout="wide")
 
-st.title("🎯 Niche Explorer")
+st.title("🎯 트렌드 분석")
 st.markdown("키워드 기반 니치 탐색 및 클러스터 분석")
 
 # Initialize session state

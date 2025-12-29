@@ -12,7 +12,7 @@ import glob
 import yt_dlp
 from core import db, metrics, similar, jobs
 
-st.set_page_config(page_title="Channel Detail", page_icon="🔍", layout="wide")
+st.set_page_config(page_title="📈 상세 분석", page_icon="📈", layout="wide")
 
 
 # Video player dialog
@@ -117,7 +117,7 @@ def show_video_player(video_id, video_title):
             st.rerun()
 
 
-st.title("🔍 Channel Detail")
+st.title("📈 상세 분석")
 st.markdown("채널 상세 분석 및 영상 데이터")
 
 # Get all channels for selector

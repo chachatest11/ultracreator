@@ -7,8 +7,8 @@ from core import db
 
 # Page config
 st.set_page_config(
-    page_title="NexLev Mini - YouTube Analytics",
-    page_icon="📊",
+    page_title="🏠 시작 - NexLev Mini",
+    page_icon="🏠",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -58,22 +58,22 @@ st.markdown("""
 
 #### 주요 기능:
 
-1. **📈 Dashboard** - 관심 채널 관리 및 주요 지표 모니터링
+1. **📊 채널 목록** - 관심 채널 관리 및 주요 지표 모니터링
    - 채널 추가/삭제/갱신
    - 핵심 지표 한눈에 확인
    - Shorts 중심 필터링
 
-2. **🔍 Channel Detail** - 채널 상세 분석
+2. **📈 상세 분석** - 채널 상세 분석
    - 최근 50개 영상 데이터
    - 업로드 패턴 분석
    - 조회수 분포 시각화
 
-3. **📋 Watchlists** - 채널 그룹 관리 및 비교
-   - 워치리스트 생성/관리
+3. **⭐ 그룹 관리** - 채널 그룹 관리 및 비교
+   - 그룹 생성/관리
    - 채널 간 성과 비교
    - 패턴 분석 (요일/시간대/제목길이)
 
-4. **🎯 Niche Explorer** - 니치 키워드 탐색
+4. **🎯 트렌드 분석** - 니치 키워드 탐색
    - 키워드 기반 영상 수집 (200~500개)
    - AI 클러스터링으로 트렌드 발견
    - 진입 가능성 점수화
@@ -82,7 +82,7 @@ st.markdown("""
 
 왼쪽 사이드바에서 원하는 페이지를 선택하세요.
 
-- **Dashboard**에서 첫 채널을 추가해보세요!
+- **📊 채널 목록**에서 첫 채널을 추가해보세요!
 - YouTube 채널 ID, 핸들(@username), 또는 URL을 입력하면 됩니다.
 
 #### 설정:

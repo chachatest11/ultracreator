@@ -6,9 +6,9 @@ import pandas as pd
 from datetime import datetime
 from core import db, jobs, metrics
 
-st.set_page_config(page_title="Dashboard", page_icon="📈", layout="wide")
+st.set_page_config(page_title="📊 채널 목록", page_icon="📊", layout="wide")
 
-st.title("📈 Dashboard")
+st.title("📊 채널 목록")
 st.markdown("관심 채널 관리 및 주요 지표 모니터링")
 
 # Initialize session state
