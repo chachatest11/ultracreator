@@ -70,11 +70,6 @@ with st.sidebar:
 # Get all channels
 channels = db.get_all_channels()
 
-# Debug: Print channel count to terminal
-print(f"[DASHBOARD] Loaded {len(channels)} channels from database")
-for ch in channels:
-    print(f"[DASHBOARD] - Channel ID: {ch.id}, Title: {ch.title}")
-
 if not channels:
     st.info("아직 등록된 채널이 없습니다. 사이드바에서 채널을 추가해보세요!")
     st.stop()

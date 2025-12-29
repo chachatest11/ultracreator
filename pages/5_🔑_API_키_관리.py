@@ -6,9 +6,9 @@ import pandas as pd
 from datetime import datetime
 from core.api_key_storage import get_storage
 
-st.set_page_config(page_title="API Key Manager", page_icon="🔑", layout="wide")
+st.set_page_config(page_title="🔑 API 키 관리", page_icon="🔑", layout="wide")
 
-st.title("🔑 API Key Manager")
+st.title("🔑 API 키 관리")
 st.markdown("YouTube Data API 키 관리 - UI에서 직접 추가/삭제/활성화")
 
 # Get storage instance

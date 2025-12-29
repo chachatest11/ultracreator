@@ -224,36 +224,19 @@ def get_channel_by_youtube_id(youtube_channel_id: str) -> Optional[Channel]:
 
 def get_all_channels() -> List[Channel]:
     """Get all channels"""
-    print(f"[GET_CHANNELS] DB Path (relative): {DB_PATH}")
-    print(f"[GET_CHANNELS] DB Path (absolute): {os.path.abspath(DB_PATH)}")
-    print(f"[GET_CHANNELS] Current working directory: {os.getcwd()}")
-
     with get_db() as conn:
         cursor = conn.cursor()
-
-        # First check total count
-        cursor.execute("SELECT COUNT(*) FROM channels")
-        total_count = cursor.fetchone()[0]
-        print(f"[GET_CHANNELS] Total channels in DB: {total_count}")
-
         cursor.execute("SELECT * FROM channels ORDER BY created_at DESC")
-        rows = cursor.fetchall()
-        channels = [Channel.from_db_row(row) for row in rows]
-
-        # Debug: Show actual channel IDs from raw query
-        cursor.execute("SELECT id, title FROM channels")
-        raw_channels = cursor.fetchall()
-        print(f"[GET_CHANNELS] Raw channel data from DB: {raw_channels}")
-        print(f"[GET_CHANNELS] Channel objects: {[(ch.id, ch.title) for ch in channels]}")
-        print(f"[GET_CHANNELS] Returning {len(channels)} channels")
-        return channels
+        return [Channel.from_db_row(row) for row in cursor.fetchall()]
 
 
 def delete_channel(channel_id: int):
     """Delete channel and all related data"""
+    # Convert numpy.int64 to Python int (fixes SQLite parameterized query issue)
+    channel_id = int(channel_id)
+
     print(f"[DELETE] Received channel_id parameter: {channel_id}")
     print(f"[DELETE] channel_id type: {type(channel_id)}")
-    print(f"[DELETE] channel_id repr: {repr(channel_id)}")
     print(f"[DELETE] DB Path (relative): {DB_PATH}")
     print(f"[DELETE] DB Path (absolute): {os.path.abspath(DB_PATH)}")
     print(f"[DELETE] Current working directory: {os.getcwd()}")
@@ -264,76 +247,41 @@ def delete_channel(channel_id: int):
     try:
         cursor = conn.cursor()
 
-        # Check total channels in database
-        cursor.execute("SELECT COUNT(*) FROM channels")
-        total_channels = cursor.fetchone()[0]
-        print(f"[DELETE] Total channels in DB before deletion: {total_channels}")
-
-        # List ALL channels in database to debug
-        cursor.execute("SELECT id, title FROM channels")
-        all_channels = cursor.fetchall()
-        print(f"[DELETE] All channels in DB: {all_channels}")
-
-        # Check the type of the first channel ID
-        if all_channels:
-            first_id = all_channels[0][0]
-            print(f"[DELETE] First channel ID from DB: {first_id}, type: {type(first_id)}, repr: {repr(first_id)}")
-            print(f"[DELETE] Does {repr(channel_id)} == {repr(first_id)}? {channel_id == first_id}")
-            print(f"[DELETE] Does int({repr(channel_id)}) == int({repr(first_id)})? {int(channel_id) == int(first_id)}")
-
-        # First check if channel exists
-        print(f"[DELETE] About to execute: SELECT id, title FROM channels WHERE id = ? with parameter ({channel_id},)")
-        print(f"[DELETE] Parameter type: {type(channel_id)}")
+        # Check if channel exists
         cursor.execute("SELECT id, title FROM channels WHERE id = ?", (channel_id,))
         channel = cursor.fetchone()
-        print(f"[DELETE] Query result for channel_id={channel_id}: {channel}")
 
         if not channel:
-            print(f"[DELETE] WARNING: Channel {channel_id} does not exist in database!")
-            print(f"[DELETE] Available channel IDs: {[ch[0] for ch in all_channels]}")
-            # Return special status to indicate channel was already deleted
+            print(f"[DELETE] Channel {channel_id} does not exist in database")
             return "already_deleted"
 
-        print(f"[DELETE] Found channel: id={channel[0]}, title={channel[1]}")
+        print(f"[DELETE] Deleting channel: id={channel[0]}, title={channel[1]}")
 
         # Delete video snapshots
         cursor.execute("""
             DELETE FROM video_snapshots
             WHERE video_id IN (SELECT id FROM videos WHERE channel_id = ?)
         """, (channel_id,))
-        print(f"[DELETE] Deleted {cursor.rowcount} video snapshots")
 
         # Delete videos
         cursor.execute("DELETE FROM videos WHERE channel_id = ?", (channel_id,))
-        print(f"[DELETE] Deleted {cursor.rowcount} videos")
 
         # Delete channel snapshots
         cursor.execute("DELETE FROM channel_snapshots WHERE channel_id = ?", (channel_id,))
-        print(f"[DELETE] Deleted {cursor.rowcount} channel snapshots")
 
         # Delete watchlist associations
         cursor.execute("DELETE FROM watchlist_channels WHERE channel_id = ?", (channel_id,))
-        print(f"[DELETE] Deleted {cursor.rowcount} watchlist associations")
 
         # Finally, delete the channel
         cursor.execute("DELETE FROM channels WHERE id = ?", (channel_id,))
         deleted_count = cursor.rowcount
-        print(f"[DELETE] Deleted {deleted_count} channels")
 
         if deleted_count == 0:
-            raise Exception(f"Failed to delete channel {channel_id} - rowcount is 0")
+            raise Exception(f"Failed to delete channel {channel_id}")
 
         # Commit the transaction
         conn.commit()
-        print(f"[DELETE] Transaction committed successfully")
-
-        # Verify deletion
-        cursor.execute("SELECT COUNT(*) FROM channels WHERE id = ?", (channel_id,))
-        remaining = cursor.fetchone()[0]
-        print(f"[DELETE] Verification - remaining channels with id {channel_id}: {remaining}")
-
-        if remaining > 0:
-            raise Exception(f"Channel {channel_id} still exists after deletion!")
+        print(f"[DELETE] Successfully deleted channel {channel_id}")
 
         return True
 
