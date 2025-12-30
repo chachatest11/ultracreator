@@ -98,7 +98,8 @@ def extract_scenes(
         ret, frame = cap.read()
 
         if ret:
-            start_filename = f"scene_{idx:03d}_start.jpg"
+            # Use 1_ prefix so start comes before end in alphabetical order
+            start_filename = f"scene_{idx:03d}_1_start.jpg"
             start_path = os.path.join(output_dir, start_filename)
             cv2.imwrite(start_path, frame, [cv2.IMWRITE_JPEG_QUALITY, 95])
             extracted_frames.append({
@@ -114,7 +115,8 @@ def extract_scenes(
         ret, frame = cap.read()
 
         if ret:
-            end_filename = f"scene_{idx:03d}_end.jpg"
+            # Use 2_ prefix so end comes after start in alphabetical order
+            end_filename = f"scene_{idx:03d}_2_end.jpg"
             end_path = os.path.join(output_dir, end_filename)
             cv2.imwrite(end_path, frame, [cv2.IMWRITE_JPEG_QUALITY, 95])
             extracted_frames.append({
