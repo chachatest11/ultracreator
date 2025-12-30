@@ -72,20 +72,9 @@ def show_video_player(video_id, video_title):
                     with tempfile.TemporaryDirectory() as temp_dir:
                         output_template = os.path.join(temp_dir, "video.%(ext)s")
 
-                        # yt-dlp options - Try to get best quality with 720p minimum
-                        # Use original working approach with format fallbacks
-                        ydl_opts = {
-                            'format': (
-                                # Priority 1: 720p or higher pre-merged formats (no PO Token needed)
-                                'best[height>=720][ext=mp4]/'
-                                'best[height>=720]/'
-                                # Priority 2: Try adaptive formats for 720p+
-                                'bestvideo[height>=720][ext=mp4]+bestaudio[ext=m4a]/'
-                                'bestvideo[height>=720]+bestaudio/'
-                                # Priority 3: Any pre-merged best quality
-                                'best[ext=mp4]/'
-                                'best'
-                            ),
+                        # yt-dlp options - Aggressive strategy for high quality
+                        # Try specific format IDs that don't require PO Token
+                        base_ydl_opts = {
                             'outtmpl': output_template,
                             'merge_output_format': 'mp4',
                             'format_sort': ['res', 'vcodec:h264', 'acodec:m4a'],
@@ -94,24 +83,47 @@ def show_video_player(video_id, video_title):
                             'no_warnings': False,
                         }
 
-                        # Try download with default settings (no client specified)
-                        st.info("📥 영상 다운로드 중... (기본 설정)")
+                        # Try download with multiple format strategies
+                        st.info("📥 고화질 다운로드 시도 중... (여러 전략 사용)")
                         download_success = False
                         info = None
 
-                        # Try multiple clients in order
-                        clients_to_try = [
-                            (None, '기본 설정'),
-                            (['android'], 'Android'),
-                            (['mweb'], 'Mobile Web'),
-                            (['ios'], 'iOS'),
-                            (['tv_embedded'], 'TV Embedded'),
-                            (['web'], 'Web'),
+                        # Format strategies with different approaches
+                        # Format IDs: 22=720p(mp4), 136=720p(video), 137=1080p(video), 140=128k(audio)
+                        format_strategies = [
+                            # Strategy 1: Specific 720p format (format 22 - pre-merged, no PO Token)
+                            ('22', None, 'Format 22 (720p HD 프리머지드)'),
+
+                            # Strategy 2: Try adaptive 720p with android
+                            ('136+140/136+bestaudio', ['android'], 'Format 136+140 (720p 어댑티브, Android)'),
+
+                            # Strategy 3: Try 1080p with android
+                            ('137+140/137+bestaudio', ['android'], 'Format 137+140 (1080p 어댑티브, Android)'),
+
+                            # Strategy 4: Best with height filter, android
+                            ('bestvideo[height>=720]+bestaudio/best[height>=720]', ['android'], '720p+ 최고화질 (Android)'),
+
+                            # Strategy 5: Try MWEB client
+                            ('best[height>=720]', ['mweb'], '720p+ (Mobile Web)'),
+
+                            # Strategy 6: Try format 22 with different clients
+                            ('22', ['mweb'], 'Format 22 (MWEB)'),
+                            ('22', ['ios'], 'Format 22 (iOS)'),
+                            ('22', ['tv_embedded'], 'Format 22 (TV)'),
+
+                            # Strategy 7: Generic best with various clients
+                            ('bestvideo+bestaudio/best', ['android'], '최고화질 (Android)'),
+                            ('bestvideo+bestaudio/best', ['mweb'], '최고화질 (MWEB)'),
+                            ('bestvideo+bestaudio/best', ['ios'], '최고화질 (iOS)'),
+
+                            # Strategy 8: Last resort - no client specified
+                            ('best[height>=720]', None, '720p+ (기본 설정)'),
+                            ('bestvideo[height>=720]+bestaudio', None, '720p+ 어댑티브 (기본)'),
                         ]
 
-                        for client_config, client_name in clients_to_try:
+                        for format_spec, client_config, desc in format_strategies:
                             try:
-                                st.info(f"🔄 시도 중: {client_name} 클라이언트")
+                                st.info(f"🔄 시도 중: {desc}")
 
                                 # Remove previous downloads
                                 for f in glob.glob(os.path.join(temp_dir, "*")):
@@ -119,6 +131,10 @@ def show_video_player(video_id, video_title):
                                         os.remove(f)
                                     except:
                                         pass
+
+                                # Clone base options
+                                ydl_opts = base_ydl_opts.copy()
+                                ydl_opts['format'] = format_spec
 
                                 # Configure client
                                 if client_config:
@@ -129,7 +145,6 @@ def show_video_player(video_id, video_title):
                                         }
                                     }
                                 else:
-                                    # Remove extractor_args for default
                                     ydl_opts.pop('extractor_args', None)
 
                                 # Download
@@ -139,18 +154,20 @@ def show_video_player(video_id, video_title):
                                 # Check quality - handle None height
                                 height = info.get('height', 0) or 0  # Convert None to 0
                                 vcodec = info.get('vcodec', 'none')
+                                width = info.get('width', 0) or 0
 
-                                st.caption(f"📊 다운로드됨: {height}p, vcodec={vcodec}")
+                                st.caption(f"📊 다운로드됨: {width}x{height} ({height}p), vcodec={vcodec}")
 
                                 if height >= 720 and vcodec and vcodec != 'none':
                                     download_success = True
-                                    st.success(f"✅ {client_name} 성공: {height}p")
+                                    st.success(f"✅ {desc} 성공: {height}p")
                                     break
                                 else:
-                                    st.warning(f"⚠️ {client_name} 실패 - {height}p (720p 미만)")
+                                    st.warning(f"⚠️ {desc} 실패 - {height}p (720p 미만)")
 
                             except Exception as e:
-                                st.warning(f"⚠️ {client_name} 오류: {str(e)[:150]}")
+                                error_msg = str(e)
+                                st.warning(f"⚠️ {desc} 오류: {error_msg[:150]}")
                                 continue
 
                         # Final check
