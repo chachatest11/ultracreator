@@ -69,66 +69,83 @@ def show_video_player(video_id, video_title):
                     with tempfile.TemporaryDirectory() as temp_dir:
                         output_template = os.path.join(temp_dir, "video.%(ext)s")
 
-                        # yt-dlp options - Use formats that don't require signature
+                        # yt-dlp options - Use alternative extractors to bypass signature
                         ydl_opts = {
-                            # Format priority: prefer formats that don't need signature solving
-                            # 18 = 360p mp4 (no signature required)
-                            # 22 = 720p mp4 (may require signature)
-                            # Fallback to any available video format
-                            'format': '18/22/bv*[height<=720]+ba/bv*+ba/b',
+                            # Use specific video+audio format codes that work without signature
+                            # 134 = 360p video, 133 = 240p video
+                            # 140 = m4a audio, 139 = low quality audio
+                            'format': '134+140/133+139/18/worst[ext=mp4]/worst',
                             'outtmpl': output_template,
                             'merge_output_format': 'mp4',
+                            # Use android client to bypass some restrictions
+                            'extractor_args': {
+                                'youtube': {
+                                    'player_client': ['android', 'web'],
+                                    'player_skip': ['webpage', 'configs'],
+                                }
+                            },
                             # Less strict settings
                             'quiet': False,
                             'no_warnings': False,
                             'retries': 3,
                             'fragment_retries': 3,
                             'force_ipv4': True,
-                            # Skip unavailable fragments
                             'skip_unavailable_fragments': True,
                         }
 
                         # Download video
-                        st.info("📥 영상 다운로드 중... (YouTube 제한으로 360p-720p로 다운로드됩니다)")
+                        st.info("📥 영상 다운로드 중... (Android client 사용)")
                         download_success = False
 
-                        # Try multiple format strategies
+                        # Try multiple strategies with different clients
                         format_attempts = [
-                            ('18/22/bv*[height<=720]+ba/bv*+ba/b', '표준 형식 (360p-720p)'),
-                            ('18', '360p만'),
-                            ('worst', '최저 화질 (안정적)'),
+                            ('134+140/133+139/18', 'android', '비디오+오디오 병합 (Android)'),
+                            ('18', 'android', '360p 단일 포맷 (Android)'),
+                            ('worst[ext=mp4]/worst', 'web', '최저 화질 (Web)'),
+                            ('worstvideo+worstaudio/worst', 'android', '최저 비디오+오디오 (Android)'),
                         ]
 
-                        for format_str, format_desc in format_attempts:
+                        for format_str, client, format_desc in format_attempts:
                             try:
                                 st.info(f"🔄 시도 중: {format_desc}")
                                 ydl_opts['format'] = format_str
+                                ydl_opts['extractor_args'] = {
+                                    'youtube': {
+                                        'player_client': [client],
+                                        'player_skip': ['webpage', 'configs'] if client == 'android' else [],
+                                    }
+                                }
 
                                 with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                                     info = ydl.extract_info(video_url, download=True)
 
                                 # Check if we got video
                                 vcodec = info.get('vcodec', 'none')
-                                if vcodec and vcodec != 'none' and vcodec != 'null':
+                                acodec = info.get('acodec', 'none')
+
+                                st.info(f"📊 다운로드됨: vcodec={vcodec}, acodec={acodec}")
+
+                                if vcodec and vcodec != 'none' and vcodec != 'null' and vcodec.strip():
                                     download_success = True
                                     st.success(f"✅ 다운로드 성공: {format_desc}")
                                     break
                                 else:
-                                    st.warning(f"⚠️ {format_desc} 실패 - 비디오 없음")
+                                    st.warning(f"⚠️ {format_desc} 실패 - 비디오 코덱 없음")
 
                             except Exception as e:
                                 error_msg = str(e)
-                                st.warning(f"⚠️ {format_desc} 실패: {error_msg[:100]}")
+                                st.warning(f"⚠️ {format_desc} 실패: {error_msg[:150]}")
                                 continue
 
                         if not download_success:
                             raise Exception(
-                                "모든 형식 시도 실패\n\n"
-                                "YouTube가 이 영상의 다운로드를 제한하고 있습니다.\n"
+                                "모든 다운로드 방법 실패\n\n"
+                                "YouTube의 보안 강화로 이 영상을 다운로드할 수 없습니다.\n\n"
                                 "가능한 해결책:\n"
                                 "1. 다른 영상을 시도해보세요\n"
-                                "2. 나중에 다시 시도해보세요 (YouTube 제한은 임시적일 수 있습니다)\n"
-                                "3. 이 영상은 온라인에서만 재생 가능할 수 있습니다"
+                                "2. yt-dlp를 최신 버전으로 업데이트: pip install -U yt-dlp\n"
+                                "3. 이 영상은 제한된 영상일 수 있습니다\n\n"
+                                "참고: 일부 영상은 YouTube 정책상 다운로드가 불가능합니다."
                             )
 
                         # Get video info
