@@ -7,6 +7,10 @@ requests>=2.31.0
 # YouTube Video Download
 yt-dlp>=2023.12.0
 
+# Video Processing & Scene Detection
+opencv-python>=4.8.0
+scenedetect>=0.6.2
+
 # Database
 # SQLite is built into Python, no additional package needed
 

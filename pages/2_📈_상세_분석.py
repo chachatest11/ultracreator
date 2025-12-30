@@ -10,7 +10,9 @@ import os
 import tempfile
 import glob
 import yt_dlp
+import zipfile
 from core import db, metrics, similar, jobs
+from core.scene_extractor import extract_scenes, get_scene_summary
 
 st.set_page_config(page_title="📈 상세 분석", page_icon="📈", layout="wide")
 
@@ -25,12 +27,42 @@ def show_video_player(video_id, video_title):
     video_url = f"https://www.youtube.com/watch?v={video_id}"
     st.video(video_url)
 
-    # Download button
+    # Download options
+    st.markdown("---")
+    st.subheader("📥 다운로드 옵션")
+
+    extract_screenshots = st.checkbox(
+        "📸 장면별 스크린샷 추출 (AI 영상 제작용)",
+        value=False,
+        help="각 장면(컷)의 시작과 끝 프레임을 자동 추출합니다"
+    )
+
+    if extract_screenshots:
+        col_opt1, col_opt2 = st.columns(2)
+        with col_opt1:
+            scene_threshold = st.slider(
+                "장면 감지 민감도",
+                min_value=10.0,
+                max_value=50.0,
+                value=27.0,
+                step=1.0,
+                help="낮을수록 더 많은 장면을 감지합니다 (기본: 27)"
+            )
+        with col_opt2:
+            min_scene_duration = st.slider(
+                "최소 장면 길이 (초)",
+                min_value=0.1,
+                max_value=3.0,
+                value=0.5,
+                step=0.1,
+                help="이보다 짧은 장면은 무시합니다"
+            )
+
     st.markdown("---")
     col1, col2 = st.columns([1, 1])
 
     with col1:
-        if st.button("📥 영상 다운로드", width="stretch", type="primary"):
+        if st.button("📥 영상 다운로드" + (" + 스크린샷 추출" if extract_screenshots else ""), width="stretch", type="primary"):
             with st.spinner("영상을 다운로드하는 중... (시간이 걸릴 수 있습니다)"):
                 try:
                     # Create temporary directory
@@ -92,9 +124,73 @@ def show_video_player(video_id, video_title):
                         with open(video_file, 'rb') as f:
                             video_bytes = f.read()
 
-                        # Provide download button
+                        # Extract screenshots if requested
+                        screenshot_result = None
+                        if extract_screenshots:
+                            st.markdown("---")
+                            st.info("📸 장면별 스크린샷 추출 중...")
+
+                            progress_placeholder = st.empty()
+
+                            def update_progress(msg):
+                                progress_placeholder.info(msg)
+
+                            # Create scenes directory
+                            scenes_dir = os.path.join(temp_dir, "scenes")
+
+                            try:
+                                screenshot_result = extract_scenes(
+                                    video_path=video_file,
+                                    output_dir=scenes_dir,
+                                    threshold=scene_threshold if extract_screenshots else 27.0,
+                                    min_scene_len=min_scene_duration if extract_screenshots else 0.5,
+                                    progress_callback=update_progress
+                                )
+
+                                progress_placeholder.empty()
+
+                                if screenshot_result['success']:
+                                    st.success(f"✅ {screenshot_result['total_frames']}개 프레임 추출 완료!")
+
+                                    # Display summary
+                                    with st.expander("📊 장면 분석 결과 보기"):
+                                        st.markdown(get_scene_summary(screenshot_result))
+
+                                    # Create ZIP file with screenshots
+                                    zip_path = os.path.join(temp_dir, "screenshots.zip")
+                                    with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                                        for frame_info in screenshot_result['frames']:
+                                            zipf.write(
+                                                frame_info['path'],
+                                                arcname=os.path.basename(frame_info['path'])
+                                            )
+
+                                    # Read ZIP file
+                                    with open(zip_path, 'rb') as f:
+                                        zip_bytes = f.read()
+
+                                    # Provide ZIP download button
+                                    st.download_button(
+                                        label=f"📦 스크린샷 다운로드 ({screenshot_result['total_frames']}개 이미지)",
+                                        data=zip_bytes,
+                                        file_name=f"{video_title[:50]}_screenshots.zip",
+                                        mime="application/zip",
+                                        width="stretch"
+                                    )
+
+                                else:
+                                    st.warning(screenshot_result.get('message', '스크린샷 추출 실패'))
+
+                            except Exception as e:
+                                st.error(f"스크린샷 추출 실패: {str(e)}")
+                                st.caption("💡 OpenCV와 PySceneDetect가 설치되어 있는지 확인하세요:")
+                                st.code("pip install opencv-python scenedetect")
+
+                        st.markdown("---")
+
+                        # Provide video download button
                         st.download_button(
-                            label="💾 다운로드 완료 - 저장하기",
+                            label="💾 영상 다운로드 - 저장하기",
                             data=video_bytes,
                             file_name=f"{video_title[:50]}.mp4",
                             mime="video/mp4",
