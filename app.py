@@ -7,7 +7,7 @@ from core import db
 
 # Page config
 st.set_page_config(
-    page_title="홈",
+    page_title="홈 - NexLev Mini",
     page_icon="🏠",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -15,6 +15,20 @@ st.set_page_config(
 
 # Initialize database
 db.init_db()
+
+# Custom CSS to rename "Home" to "홈" in sidebar
+st.markdown("""
+<style>
+    /* Hide the default Home label and replace with 홈 */
+    [data-testid="stSidebarNav"] li:first-child a div[data-testid="stMarkdownContainer"] p {
+        font-size: 0;
+    }
+    [data-testid="stSidebarNav"] li:first-child a div[data-testid="stMarkdownContainer"] p::before {
+        content: "🏠 홈";
+        font-size: 1rem;
+    }
+</style>
+""", unsafe_allow_html=True)
 
 # Custom CSS for better UI
 st.markdown("""

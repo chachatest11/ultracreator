@@ -2,10 +2,7 @@
 Scene detection and frame extraction for video analysis
 """
 import os
-import cv2
 from typing import List, Dict, Optional, Callable
-from scenedetect import VideoManager, SceneManager
-from scenedetect.detectors import ContentDetector
 
 
 def extract_scenes(
@@ -28,6 +25,18 @@ def extract_scenes(
     Returns:
         Dict with scene info and extracted frames
     """
+    # Import here to avoid errors if opencv/scenedetect not installed
+    try:
+        import cv2
+        from scenedetect import VideoManager, SceneManager
+        from scenedetect.detectors import ContentDetector
+    except ImportError as e:
+        return {
+            'success': False,
+            'message': f'필수 패키지가 설치되지 않았습니다: {str(e)}\n\n설치 방법:\npip install opencv-python scenedetect',
+            'scenes': [],
+            'frames': []
+        }
 
     if not os.path.exists(video_path):
         raise FileNotFoundError(f"Video file not found: {video_path}")
