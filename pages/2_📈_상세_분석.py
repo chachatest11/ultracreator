@@ -72,58 +72,94 @@ def show_video_player(video_id, video_title):
                     with tempfile.TemporaryDirectory() as temp_dir:
                         output_path = os.path.join(temp_dir, "video.mp4")
 
-                        st.info("📥 사용 가능한 화질 확인 중...")
+                        st.info("📥 사용 가능한 화질 확인 중... (여러 클라이언트 시도)")
 
-                        # Step 1: List available formats using CLI
-                        list_cmd = [
-                            'yt-dlp',
-                            '--list-formats',
-                            '--extractor-args', 'youtube:player_client=android',
-                            '--no-warnings',
-                            video_url
+                        # Step 1: List available formats using multiple clients
+                        # Try different clients to find best available formats
+                        best_formats_output = ""
+                        best_client = "android"
+                        max_format_count = 0
+
+                        clients_to_try = [
+                            ('android', 'Android'),
+                            ('mweb', 'Mobile Web'),
+                            ('web', 'Web'),
+                            ('ios', 'iOS'),
+                            ('tv_embedded', 'TV Embedded'),
                         ]
 
-                        try:
-                            result = subprocess.run(
-                                list_cmd,
-                                capture_output=True,
-                                text=True,
-                                timeout=30
-                            )
-                            formats_output = result.stdout
+                        for client_name, client_desc in clients_to_try:
+                            try:
+                                list_cmd = [
+                                    'yt-dlp',
+                                    '--list-formats',
+                                    '--extractor-args', f'youtube:player_client={client_name}',
+                                    '--no-warnings',
+                                    video_url
+                                ]
 
-                            # Parse available formats
-                            # Look for lines with format ID, extension, resolution
+                                result = subprocess.run(
+                                    list_cmd,
+                                    capture_output=True,
+                                    text=True,
+                                    timeout=30
+                                )
+
+                                # Parse available formats
+                                format_lines = []
+                                for line in result.stdout.split('\n'):
+                                    # Match lines like: "22    mp4   1280x720   720p"
+                                    if re.search(r'^\d+\s+\w+\s+\d+x\d+', line):
+                                        format_lines.append(line)
+
+                                st.caption(f"🔍 {client_desc} 클라이언트: {len(format_lines)}개 포맷 발견")
+
+                                # Keep track of client with most formats
+                                if len(format_lines) > max_format_count:
+                                    max_format_count = len(format_lines)
+                                    best_formats_output = result.stdout
+                                    best_client = client_name
+
+                            except Exception as e:
+                                st.caption(f"⚠️ {client_desc} 포맷 조회 실패: {str(e)[:100]}")
+                                continue
+
+                        # Show best available formats
+                        if best_formats_output:
                             format_lines = []
-                            for line in formats_output.split('\n'):
-                                # Match lines like: "22    mp4   1280x720   720p"
+                            for line in best_formats_output.split('\n'):
                                 if re.search(r'^\d+\s+\w+\s+\d+x\d+', line):
                                     format_lines.append(line)
 
-                            if format_lines:
-                                st.caption(f"🔍 발견된 포맷: {len(format_lines)}개")
-                                with st.expander("사용 가능한 화질 목록"):
-                                    st.code('\n'.join(format_lines[:20]))
-                        except Exception as e:
-                            st.caption(f"⚠️ 포맷 리스트 조회 실패: {str(e)[:100]}")
+                            st.success(f"✅ {best_client.upper()} 클라이언트가 가장 많은 포맷 제공: {len(format_lines)}개")
+
+                            with st.expander("📋 사용 가능한 화질 목록 (상세)"):
+                                st.code('\n'.join(format_lines[:30]))
+                        else:
+                            st.warning("⚠️ 사용 가능한 포맷을 찾을 수 없습니다.")
 
                         # Step 2: Try downloading with best quality using CLI
                         download_success = False
                         video_file = None
                         info = {}
 
-                        # Strategy: Use CLI with multiple format attempts
+                        st.info(f"📥 다운로드 시작 (최적 클라이언트: {best_client.upper()})")
+
+                        # Strategy: Use CLI with multiple format attempts, using best client
+                        # Try multiple clients for each format strategy
                         format_strategies = [
-                            ('22', 'Format 22 (720p HD)', ['--extractor-args', 'youtube:player_client=android', '--extractor-args', 'youtube:player_skip=configs']),
-                            ('best[height>=720]', '720p 이상 최고 화질', ['--extractor-args', 'youtube:player_client=android']),
-                            ('bestvideo[height>=720][ext=mp4]+bestaudio[ext=m4a]/best[height>=720]', '720p 어댑티브', ['--extractor-args', 'youtube:player_client=android']),
-                            ('best', '최고 화질 (제한 없음)', ['--extractor-args', 'youtube:player_client=android']),
-                            ('18', 'Format 18 (360p, 최후)', ['--extractor-args', 'youtube:player_client=android']),
+                            ('22', 'Format 22 (720p HD)', best_client),
+                            ('best[height>=720]', '720p 이상 최고 화질', best_client),
+                            ('bestvideo[height>=720][ext=mp4]+bestaudio[ext=m4a]/best[height>=720]', '720p 어댑티브', best_client),
+                            ('22', 'Format 22 (720p HD) - Web', 'web'),
+                            ('best[height>=720]', '720p 이상 - MWEB', 'mweb'),
+                            ('22', 'Format 22 (720p HD) - iOS', 'ios'),
+                            ('best', '최고 화질 (제한 없음)', best_client),
                         ]
 
-                        for format_spec, desc, extra_args in format_strategies:
+                        for format_spec, desc, client in format_strategies:
                             try:
-                                st.info(f"🔄 시도 중: {desc}")
+                                st.info(f"🔄 시도 중: {desc} ({client.upper()} 클라이언트)")
 
                                 download_cmd = [
                                     'yt-dlp',
@@ -131,7 +167,9 @@ def show_video_player(video_id, video_title):
                                     '-o', output_path,
                                     '--no-warnings',
                                     '--merge-output-format', 'mp4',
-                                ] + extra_args + [video_url]
+                                    '--extractor-args', f'youtube:player_client={client}',
+                                    video_url
+                                ]
 
                                 result = subprocess.run(
                                     download_cmd,
@@ -149,7 +187,9 @@ def show_video_player(video_id, video_title):
                                         'yt-dlp',
                                         '-J',
                                         '-f', format_spec,
-                                    ] + extra_args + [video_url]
+                                        '--extractor-args', f'youtube:player_client={client}',
+                                        video_url
+                                    ]
 
                                     try:
                                         info_result = subprocess.run(
@@ -167,10 +207,15 @@ def show_video_player(video_id, video_title):
 
                                     # Verify it's actually a video file (not just audio)
                                     if file_size > 100000:  # At least 100KB
-                                        download_success = True
-                                        video_file = output_path
-                                        st.success(f"✅ 다운로드 성공: {desc} - {height}p ({file_size/1024/1024:.1f} MB)")
-                                        break
+                                        # Check if quality is at least 720p
+                                        if height >= 720:
+                                            download_success = True
+                                            video_file = output_path
+                                            st.success(f"✅ 다운로드 성공: {desc} - {height}p ({file_size/1024/1024:.1f} MB)")
+                                            break
+                                        else:
+                                            st.warning(f"⚠️ {desc} 실패 - 720p 미만 ({height}p)이므로 거부됨. 다음 전략 시도...")
+                                            os.remove(output_path)
                                     else:
                                         st.warning(f"⚠️ {desc} 실패 - 파일 크기 너무 작음 ({file_size} bytes)")
                                         os.remove(output_path)
@@ -187,15 +232,18 @@ def show_video_player(video_id, video_title):
 
                         if not download_success or not video_file:
                             raise Exception(
-                                "모든 다운로드 방법 실패\n\n"
+                                "❌ 720p 이상 화질로 다운로드 실패\n\n"
+                                "이 영상은 720p 이상 화질을 제공하지 않거나,\n"
+                                "YouTube의 보안 제한으로 고화질 다운로드가 불가능합니다.\n\n"
                                 "가능한 원인:\n"
-                                "1. YouTube의 2025년 보안 강화 (PO Token 요구)\n"
-                                "2. 네트워크 연결 문제\n"
-                                "3. 이 영상은 다운로드가 제한되어 있을 수 있습니다\n\n"
+                                "1. 이 영상의 원본이 720p 미만 (예: 480p, 360p 영상)\n"
+                                "2. YouTube의 2025년 보안 강화 (PO Token 요구)\n"
+                                "3. 모든 클라이언트(Android, MWEB, iOS, Web, TV)에서 720p 접근 불가\n\n"
                                 "해결책:\n"
-                                "1. yt-dlp 업데이트: pip install -U yt-dlp\n"
-                                "2. 다른 영상으로 시도해보세요\n"
-                                "3. VPN을 사용 중이라면 비활성화해보세요"
+                                "1. yt-dlp 최신 버전 업데이트: pip install -U yt-dlp\n"
+                                "2. 다른 영상으로 시도해보세요 (원본이 720p 이상인 영상)\n"
+                                "3. YouTube에서 이 영상의 화질 설정을 확인해보세요\n\n"
+                                "참고: 640p 이하 화질은 설정에 의해 자동 거부됩니다."
                             )
 
                         # Get video info
