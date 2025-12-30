@@ -70,29 +70,60 @@ def show_video_player(video_id, video_title):
                         output_template = os.path.join(temp_dir, "video.%(ext)s")
 
                         # yt-dlp options - Download best quality video with audio
+                        # Explicitly exclude audio-only formats
                         ydl_opts = {
-                            # Download best video + best audio, merge to mp4
-                            # Falls back to best single file if merging not available
                             'format': (
-                                'bestvideo[ext=mp4]+bestaudio[ext=m4a]/'  # Best mp4 video + m4a audio
-                                'bestvideo+bestaudio/'                     # Best video + audio (any format)
-                                'best[ext=mp4]/'                          # Pre-merged mp4 if available
-                                'best'                                     # Final fallback
+                                # Try best video+audio combination first
+                                'bestvideo[ext=mp4][vcodec^=avc]+bestaudio[ext=m4a]/[ext=webm]/'
+                                'bestvideo[ext=mp4]+bestaudio[ext=m4a]/'
+                                'bestvideo+bestaudio/'
+                                # Pre-merged formats (must have video codec)
+                                'best[ext=mp4][vcodec^=avc]/'
+                                'best[ext=mp4][height>=360]/'
+                                # Final fallback - anything with video
+                                'best[vcodec!^=none][vcodec!=none]'
                             ),
                             'outtmpl': output_template,
-                            'merge_output_format': 'mp4',  # Merge to mp4 format
-                            # Reject audio-only formats
+                            'merge_output_format': 'mp4',
                             'format_sort': ['vcodec:h264', 'res', 'acodec:m4a'],
+                            # Ensure we get video stream
+                            'prefer_free_formats': False,
+                            'quiet': False,
+                            'no_warnings': False,
                         }
 
                         # Download video
+                        st.info("📥 영상 다운로드 중...")
                         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                             info = ydl.extract_info(video_url, download=True)
 
-                        # Check if video stream exists
+                        # Verify video stream exists
                         vcodec = info.get('vcodec', 'none')
-                        if vcodec == 'none' or not vcodec:
-                            raise Exception("비디오 스트림이 없습니다. 오디오만 다운로드되었습니다. 다른 영상을 시도해주세요.")
+                        acodec = info.get('acodec', 'none')
+
+                        st.info(f"🔍 다운로드된 형식: vcodec={vcodec}, acodec={acodec}")
+
+                        # Check if we got actual video
+                        if vcodec == 'none' or not vcodec or vcodec == 'null':
+                            # Try alternative download with more permissive settings
+                            st.warning("⚠️ 첫 시도 실패, 대체 형식으로 재시도 중...")
+
+                            ydl_opts['format'] = 'best[height>=360]/best'
+
+                            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                                info = ydl.extract_info(video_url, download=True)
+
+                            vcodec = info.get('vcodec', 'none')
+
+                            if vcodec == 'none' or not vcodec or vcodec == 'null':
+                                raise Exception(
+                                    "비디오 스트림을 찾을 수 없습니다.\n\n"
+                                    "가능한 원인:\n"
+                                    "1. 이 영상은 오디오만 제공됩니다 (Podcast 등)\n"
+                                    "2. 라이브 스트림이거나 제한된 영상입니다\n"
+                                    "3. YouTube 정책상 다운로드가 제한된 영상입니다\n\n"
+                                    "다른 영상을 시도해보세요."
+                                )
 
                         # Find the downloaded file
                         downloaded_files = glob.glob(os.path.join(temp_dir, "*"))
