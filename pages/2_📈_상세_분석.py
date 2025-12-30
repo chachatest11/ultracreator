@@ -99,53 +99,59 @@ def show_video_player(video_id, video_title):
                         download_success = False
                         info = None
 
-                        try:
-                            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                                info = ydl.extract_info(video_url, download=True)
+                        # Try multiple clients in order
+                        clients_to_try = [
+                            (None, '기본 설정'),
+                            (['android'], 'Android'),
+                            (['mweb'], 'Mobile Web'),
+                            (['ios'], 'iOS'),
+                            (['tv_embedded'], 'TV Embedded'),
+                            (['web'], 'Web'),
+                        ]
 
-                            # Check quality
-                            height = info.get('height', 0)
-                            vcodec = info.get('vcodec', 'none')
-
-                            if height >= 720 and vcodec and vcodec != 'none':
-                                download_success = True
-                                st.success(f"✅ 다운로드 성공: {height}p")
-                            else:
-                                st.warning(f"⚠️ 기본 설정 실패 - {height}p (720p 미만). Android 클라이언트로 재시도...")
-
-                        except Exception as e:
-                            st.warning(f"⚠️ 기본 설정 실패: {str(e)[:150]}")
-
-                        # If first attempt failed, try with Android client
-                        if not download_success:
-                            st.info("📥 Android 클라이언트로 재시도 중...")
-
-                            # Remove previous download if exists
-                            for f in glob.glob(os.path.join(temp_dir, "*")):
-                                os.remove(f)
-
-                            ydl_opts['extractor_args'] = {
-                                'youtube': {
-                                    'player_client': ['android'],
-                                    'player_skip': ['configs'],
-                                }
-                            }
-
+                        for client_config, client_name in clients_to_try:
                             try:
+                                st.info(f"🔄 시도 중: {client_name} 클라이언트")
+
+                                # Remove previous downloads
+                                for f in glob.glob(os.path.join(temp_dir, "*")):
+                                    try:
+                                        os.remove(f)
+                                    except:
+                                        pass
+
+                                # Configure client
+                                if client_config:
+                                    ydl_opts['extractor_args'] = {
+                                        'youtube': {
+                                            'player_client': client_config,
+                                            'player_skip': ['configs'] if client_config[0] in ['android', 'ios'] else [],
+                                        }
+                                    }
+                                else:
+                                    # Remove extractor_args for default
+                                    ydl_opts.pop('extractor_args', None)
+
+                                # Download
                                 with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                                     info = ydl.extract_info(video_url, download=True)
 
-                                height = info.get('height', 0)
+                                # Check quality - handle None height
+                                height = info.get('height', 0) or 0  # Convert None to 0
                                 vcodec = info.get('vcodec', 'none')
+
+                                st.caption(f"📊 다운로드됨: {height}p, vcodec={vcodec}")
 
                                 if height >= 720 and vcodec and vcodec != 'none':
                                     download_success = True
-                                    st.success(f"✅ Android 클라이언트 성공: {height}p")
+                                    st.success(f"✅ {client_name} 성공: {height}p")
+                                    break
                                 else:
-                                    st.warning(f"⚠️ Android 클라이언트도 720p 미만: {height}p")
+                                    st.warning(f"⚠️ {client_name} 실패 - {height}p (720p 미만)")
 
                             except Exception as e:
-                                st.warning(f"⚠️ Android 클라이언트 실패: {str(e)[:150]}")
+                                st.warning(f"⚠️ {client_name} 오류: {str(e)[:150]}")
+                                continue
 
                         # Final check
                         if not download_success or not info:
