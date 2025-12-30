@@ -69,20 +69,11 @@ def show_video_player(video_id, video_title):
                     with tempfile.TemporaryDirectory() as temp_dir:
                         output_template = os.path.join(temp_dir, "video.%(ext)s")
 
-                        # yt-dlp options - Use Android client for best quality
-                        ydl_opts = {
-                            # Start with best quality
+                        # Base yt-dlp options - Use 2025 best practices
+                        base_ydl_opts = {
                             'format': 'bestvideo+bestaudio/best',
                             'outtmpl': output_template,
                             'merge_output_format': 'mp4',
-                            # Use android client to bypass signature restrictions
-                            'extractor_args': {
-                                'youtube': {
-                                    'player_client': ['android'],
-                                    'player_skip': ['webpage', 'configs'],
-                                }
-                            },
-                            # Settings
                             'quiet': False,
                             'no_warnings': False,
                             'retries': 3,
@@ -92,31 +83,102 @@ def show_video_player(video_id, video_title):
                         }
 
                         # Download video with multiple quality fallbacks
-                        st.info("📥 최고 화질로 다운로드 시도 중... (Android client)")
+                        st.info("📥 최고 화질로 다운로드 시도 중... (2025 최적화)")
                         download_success = False
 
-                        # Try from highest to lowest quality
+                        # Try from best to fallback strategies
+                        # Priority: mweb (2025 recommended) > ios > tv > android
                         # Format codes: 137=1080p, 136=720p, 135=480p, 134=360p
                         # Audio: 140=128k m4a, 139=48k m4a
+
+                        # Strategy 1: Try with browser cookies for authenticated/premium quality
                         format_attempts = [
-                            ('bestvideo+bestaudio/best', 'android', '최고 화질 (Android)'),
-                            ('bestvideo[height<=1080]+bestaudio/best[height<=1080]', 'android', '1080p 이하 (Android)'),
-                            ('bestvideo[height<=720]+bestaudio/best[height<=720]', 'android', '720p 이하 (Android)'),
-                            ('(137+140)/(136+140)/(135+140)/(134+140)/best', 'android', '수동 품질 선택 (Android)'),
-                            ('best', 'android', '단일 최고 품질 (Android)'),
-                            ('18/22/best', 'web', '웹 클라이언트 (fallback)'),
+                            # Best: mweb with cookies from browser (Firefox preferred)
+                            {
+                                'format': 'bestvideo[height<=1080]+bestaudio/best',
+                                'client': ['mweb', 'ios'],
+                                'cookies': 'firefox',
+                                'desc': '최고 화질 (MWEB + Firefox 쿠키)',
+                                'skip_config': False
+                            },
+                            {
+                                'format': 'bestvideo[height<=1080]+bestaudio/best',
+                                'client': ['mweb', 'ios'],
+                                'cookies': 'chrome',
+                                'desc': '최고 화질 (MWEB + Chrome 쿠키)',
+                                'skip_config': False
+                            },
+                            # Good: mweb without cookies
+                            {
+                                'format': 'bestvideo+bestaudio/best',
+                                'client': ['mweb', 'ios'],
+                                'cookies': None,
+                                'desc': '최고 화질 (MWEB)',
+                                'skip_config': False
+                            },
+                            # Alternative: ios client (good quality, fewer restrictions)
+                            {
+                                'format': 'bestvideo+bestaudio/best',
+                                'client': ['ios'],
+                                'cookies': None,
+                                'desc': '최고 화질 (iOS)',
+                                'skip_config': True
+                            },
+                            # Alternative: tv clients (good for premium content)
+                            {
+                                'format': 'bestvideo+bestaudio/best',
+                                'client': ['tv', 'tv_embedded'],
+                                'cookies': None,
+                                'desc': '최고 화질 (TV)',
+                                'skip_config': False
+                            },
+                            # Fallback: android client
+                            {
+                                'format': 'bestvideo+bestaudio/best',
+                                'client': ['android'],
+                                'cookies': None,
+                                'desc': '최고 화질 (Android)',
+                                'skip_config': True
+                            },
+                            # Last resort: web with pre-merged formats
+                            {
+                                'format': 'best',
+                                'client': ['web'],
+                                'cookies': None,
+                                'desc': '단일 최고 품질 (Web)',
+                                'skip_config': False
+                            },
                         ]
 
-                        for format_str, client, format_desc in format_attempts:
+                        for attempt in format_attempts:
                             try:
-                                st.info(f"🔄 시도 중: {format_desc}")
-                                ydl_opts['format'] = format_str
+                                st.info(f"🔄 시도 중: {attempt['desc']}")
+
+                                # Clone base options
+                                ydl_opts = base_ydl_opts.copy()
+                                ydl_opts['format'] = attempt['format']
+
+                                # Set extractor args
                                 ydl_opts['extractor_args'] = {
                                     'youtube': {
-                                        'player_client': [client],
-                                        'player_skip': ['webpage', 'configs'] if client == 'android' else [],
+                                        'player_client': attempt['client'],
                                     }
                                 }
+
+                                # Add player_skip for specific clients
+                                if attempt['skip_config']:
+                                    ydl_opts['extractor_args']['youtube']['player_skip'] = ['configs']
+
+                                # Add cookies if specified
+                                if attempt['cookies']:
+                                    try:
+                                        ydl_opts['cookiesfrombrowser'] = (attempt['cookies'],)
+                                        st.caption(f"🍪 {attempt['cookies']} 브라우저 쿠키 사용 시도...")
+                                    except Exception as cookie_err:
+                                        st.caption(f"⚠️ 쿠키 로드 실패, 쿠키 없이 계속: {str(cookie_err)[:100]}")
+                                        # Continue without cookies
+                                        if 'cookiesfrombrowser' in ydl_opts:
+                                            del ydl_opts['cookiesfrombrowser']
 
                                 with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                                     info = ydl.extract_info(video_url, download=True)
@@ -130,25 +192,26 @@ def show_video_player(video_id, video_title):
 
                                 if vcodec and vcodec != 'none' and vcodec != 'null' and vcodec.strip():
                                     download_success = True
-                                    st.success(f"✅ 다운로드 성공: {format_desc} - {height}p")
+                                    st.success(f"✅ 다운로드 성공: {attempt['desc']} - {height}p")
                                     break
                                 else:
-                                    st.warning(f"⚠️ {format_desc} 실패 - 비디오 코덱 없음")
+                                    st.warning(f"⚠️ {attempt['desc']} 실패 - 비디오 코덱 없음")
 
                             except Exception as e:
                                 error_msg = str(e)
-                                st.warning(f"⚠️ {format_desc} 실패: {error_msg[:150]}")
+                                st.warning(f"⚠️ {attempt['desc']} 실패: {error_msg[:150]}")
                                 continue
 
                         if not download_success:
                             raise Exception(
                                 "모든 다운로드 방법 실패\n\n"
-                                "YouTube의 보안 강화로 이 영상을 다운로드할 수 없습니다.\n\n"
+                                "YouTube의 2025년 보안 강화로 이 영상을 다운로드할 수 없습니다.\n\n"
                                 "가능한 해결책:\n"
-                                "1. 다른 영상을 시도해보세요\n"
-                                "2. yt-dlp를 최신 버전으로 업데이트: pip install -U yt-dlp\n"
-                                "3. 이 영상은 제한된 영상일 수 있습니다\n\n"
-                                "참고: 일부 영상은 YouTube 정책상 다운로드가 불가능합니다."
+                                "1. yt-dlp를 최신 버전으로 업데이트: pip install -U yt-dlp\n"
+                                "2. Firefox 또는 Chrome에서 YouTube에 로그인한 상태로 브라우저를 열어두세요\n"
+                                "3. 일부 영상은 PO Token이 필요할 수 있습니다 (고급 기능)\n"
+                                "4. 다른 영상을 시도해보세요\n\n"
+                                "참고: YouTube는 2025년부터 PO Token과 SABR 스트리밍을 강제하고 있습니다."
                             )
 
                         # Get video info
