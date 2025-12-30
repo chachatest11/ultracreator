@@ -69,66 +69,73 @@ def show_video_player(video_id, video_title):
                     with tempfile.TemporaryDirectory() as temp_dir:
                         output_template = os.path.join(temp_dir, "video.%(ext)s")
 
-                        # yt-dlp options - Simplified for better compatibility
+                        # yt-dlp options - Use formats that don't require signature
                         ydl_opts = {
-                            # Simpler format selection that works with YouTube's restrictions
-                            # bv* = best video, ba = best audio, b = best single format
-                            'format': 'bv*+ba/b',
+                            # Format priority: prefer formats that don't need signature solving
+                            # 18 = 360p mp4 (no signature required)
+                            # 22 = 720p mp4 (may require signature)
+                            # Fallback to any available video format
+                            'format': '18/22/bv*[height<=720]+ba/bv*+ba/b',
                             'outtmpl': output_template,
                             'merge_output_format': 'mp4',
-                            # Less strict settings for better compatibility
+                            # Less strict settings
                             'quiet': False,
                             'no_warnings': False,
-                            # Retry settings
                             'retries': 3,
                             'fragment_retries': 3,
-                            # Force IPv4 (sometimes helps)
                             'force_ipv4': True,
+                            # Skip unavailable fragments
+                            'skip_unavailable_fragments': True,
                         }
 
                         # Download video
-                        st.info("📥 영상 다운로드 중...")
-                        try:
-                            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                                info = ydl.extract_info(video_url, download=True)
-                        except Exception as e:
-                            error_msg = str(e)
-                            # If format issue, try even simpler format
-                            if 'Requested format is not available' in error_msg or 'format' in error_msg.lower():
-                                st.warning("⚠️ 첫 시도 실패, 더 단순한 형식으로 재시도 중...")
-                                ydl_opts['format'] = 'b'  # Just best available
+                        st.info("📥 영상 다운로드 중... (YouTube 제한으로 360p-720p로 다운로드됩니다)")
+                        download_success = False
+
+                        # Try multiple format strategies
+                        format_attempts = [
+                            ('18/22/bv*[height<=720]+ba/bv*+ba/b', '표준 형식 (360p-720p)'),
+                            ('18', '360p만'),
+                            ('worst', '최저 화질 (안정적)'),
+                        ]
+
+                        for format_str, format_desc in format_attempts:
+                            try:
+                                st.info(f"🔄 시도 중: {format_desc}")
+                                ydl_opts['format'] = format_str
+
                                 with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                                     info = ydl.extract_info(video_url, download=True)
-                            else:
-                                raise
 
-                        # Verify video stream exists
-                        vcodec = info.get('vcodec', 'none')
-                        acodec = info.get('acodec', 'none')
+                                # Check if we got video
+                                vcodec = info.get('vcodec', 'none')
+                                if vcodec and vcodec != 'none' and vcodec != 'null':
+                                    download_success = True
+                                    st.success(f"✅ 다운로드 성공: {format_desc}")
+                                    break
+                                else:
+                                    st.warning(f"⚠️ {format_desc} 실패 - 비디오 없음")
 
-                        st.info(f"🔍 다운로드된 형식: vcodec={vcodec}, acodec={acodec}")
+                            except Exception as e:
+                                error_msg = str(e)
+                                st.warning(f"⚠️ {format_desc} 실패: {error_msg[:100]}")
+                                continue
 
-                        # Check if we got actual video
-                        if vcodec == 'none' or not vcodec or vcodec == 'null':
-                            # Try alternative download with more permissive settings
-                            st.warning("⚠️ 첫 시도 실패, 대체 형식으로 재시도 중...")
+                        if not download_success:
+                            raise Exception(
+                                "모든 형식 시도 실패\n\n"
+                                "YouTube가 이 영상의 다운로드를 제한하고 있습니다.\n"
+                                "가능한 해결책:\n"
+                                "1. 다른 영상을 시도해보세요\n"
+                                "2. 나중에 다시 시도해보세요 (YouTube 제한은 임시적일 수 있습니다)\n"
+                                "3. 이 영상은 온라인에서만 재생 가능할 수 있습니다"
+                            )
 
-                            ydl_opts['format'] = 'best[height>=360]/best'
+                        # Get video info
+                        vcodec = info.get('vcodec', 'Unknown')
+                        resolution = info.get('resolution', 'Unknown')
 
-                            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                                info = ydl.extract_info(video_url, download=True)
-
-                            vcodec = info.get('vcodec', 'none')
-
-                            if vcodec == 'none' or not vcodec or vcodec == 'null':
-                                raise Exception(
-                                    "비디오 스트림을 찾을 수 없습니다.\n\n"
-                                    "가능한 원인:\n"
-                                    "1. 이 영상은 오디오만 제공됩니다 (Podcast 등)\n"
-                                    "2. 라이브 스트림이거나 제한된 영상입니다\n"
-                                    "3. YouTube 정책상 다운로드가 제한된 영상입니다\n\n"
-                                    "다른 영상을 시도해보세요."
-                                )
+                        st.info(f"✅ 화질: {resolution} | 코덱: {vcodec}")
 
                         # Find the downloaded file
                         downloaded_files = glob.glob(os.path.join(temp_dir, "*"))
@@ -150,11 +157,7 @@ def show_video_player(video_id, video_title):
                         file_size = os.path.getsize(video_file)
                         file_size_mb = file_size / (1024*1024)
 
-                        # Get video info for display
-                        resolution = info.get('resolution', 'Unknown')
-                        vcodec_info = info.get('vcodec', 'Unknown')
-
-                        st.info(f"✅ 화질: {resolution} | 코덱: {vcodec_info} | 크기: {file_size_mb:.2f} MB")
+                        st.info(f"💾 파일 크기: {file_size_mb:.2f} MB")
 
                         # Read the downloaded file
                         with open(video_file, 'rb') as f:
