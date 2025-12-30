@@ -69,33 +69,38 @@ def show_video_player(video_id, video_title):
                     with tempfile.TemporaryDirectory() as temp_dir:
                         output_template = os.path.join(temp_dir, "video.%(ext)s")
 
-                        # yt-dlp options - Download best quality video with audio
-                        # Explicitly exclude audio-only formats
+                        # yt-dlp options - Simplified for better compatibility
                         ydl_opts = {
-                            'format': (
-                                # Try best video+audio combination first
-                                'bestvideo[ext=mp4][vcodec^=avc]+bestaudio[ext=m4a]/[ext=webm]/'
-                                'bestvideo[ext=mp4]+bestaudio[ext=m4a]/'
-                                'bestvideo+bestaudio/'
-                                # Pre-merged formats (must have video codec)
-                                'best[ext=mp4][vcodec^=avc]/'
-                                'best[ext=mp4][height>=360]/'
-                                # Final fallback - anything with video
-                                'best[vcodec!^=none][vcodec!=none]'
-                            ),
+                            # Simpler format selection that works with YouTube's restrictions
+                            # bv* = best video, ba = best audio, b = best single format
+                            'format': 'bv*+ba/b',
                             'outtmpl': output_template,
                             'merge_output_format': 'mp4',
-                            'format_sort': ['vcodec:h264', 'res', 'acodec:m4a'],
-                            # Ensure we get video stream
-                            'prefer_free_formats': False,
+                            # Less strict settings for better compatibility
                             'quiet': False,
                             'no_warnings': False,
+                            # Retry settings
+                            'retries': 3,
+                            'fragment_retries': 3,
+                            # Force IPv4 (sometimes helps)
+                            'force_ipv4': True,
                         }
 
                         # Download video
                         st.info("📥 영상 다운로드 중...")
-                        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                            info = ydl.extract_info(video_url, download=True)
+                        try:
+                            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                                info = ydl.extract_info(video_url, download=True)
+                        except Exception as e:
+                            error_msg = str(e)
+                            # If format issue, try even simpler format
+                            if 'Requested format is not available' in error_msg or 'format' in error_msg.lower():
+                                st.warning("⚠️ 첫 시도 실패, 더 단순한 형식으로 재시도 중...")
+                                ydl_opts['format'] = 'b'  # Just best available
+                                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                                    info = ydl.extract_info(video_url, download=True)
+                            else:
+                                raise
 
                         # Verify video stream exists
                         vcodec = info.get('vcodec', 'none')
