@@ -69,22 +69,20 @@ def show_video_player(video_id, video_title):
                     with tempfile.TemporaryDirectory() as temp_dir:
                         output_template = os.path.join(temp_dir, "video.%(ext)s")
 
-                        # yt-dlp options - Use alternative extractors to bypass signature
+                        # yt-dlp options - Use Android client for best quality
                         ydl_opts = {
-                            # Use specific video+audio format codes that work without signature
-                            # 134 = 360p video, 133 = 240p video
-                            # 140 = m4a audio, 139 = low quality audio
-                            'format': '134+140/133+139/18/worst[ext=mp4]/worst',
+                            # Start with best quality
+                            'format': 'bestvideo+bestaudio/best',
                             'outtmpl': output_template,
                             'merge_output_format': 'mp4',
-                            # Use android client to bypass some restrictions
+                            # Use android client to bypass signature restrictions
                             'extractor_args': {
                                 'youtube': {
-                                    'player_client': ['android', 'web'],
+                                    'player_client': ['android'],
                                     'player_skip': ['webpage', 'configs'],
                                 }
                             },
-                            # Less strict settings
+                            # Settings
                             'quiet': False,
                             'no_warnings': False,
                             'retries': 3,
@@ -93,16 +91,20 @@ def show_video_player(video_id, video_title):
                             'skip_unavailable_fragments': True,
                         }
 
-                        # Download video
-                        st.info("📥 영상 다운로드 중... (Android client 사용)")
+                        # Download video with multiple quality fallbacks
+                        st.info("📥 최고 화질로 다운로드 시도 중... (Android client)")
                         download_success = False
 
-                        # Try multiple strategies with different clients
+                        # Try from highest to lowest quality
+                        # Format codes: 137=1080p, 136=720p, 135=480p, 134=360p
+                        # Audio: 140=128k m4a, 139=48k m4a
                         format_attempts = [
-                            ('134+140/133+139/18', 'android', '비디오+오디오 병합 (Android)'),
-                            ('18', 'android', '360p 단일 포맷 (Android)'),
-                            ('worst[ext=mp4]/worst', 'web', '최저 화질 (Web)'),
-                            ('worstvideo+worstaudio/worst', 'android', '최저 비디오+오디오 (Android)'),
+                            ('bestvideo+bestaudio/best', 'android', '최고 화질 (Android)'),
+                            ('bestvideo[height<=1080]+bestaudio/best[height<=1080]', 'android', '1080p 이하 (Android)'),
+                            ('bestvideo[height<=720]+bestaudio/best[height<=720]', 'android', '720p 이하 (Android)'),
+                            ('(137+140)/(136+140)/(135+140)/(134+140)/best', 'android', '수동 품질 선택 (Android)'),
+                            ('best', 'android', '단일 최고 품질 (Android)'),
+                            ('18/22/best', 'web', '웹 클라이언트 (fallback)'),
                         ]
 
                         for format_str, client, format_desc in format_attempts:
@@ -122,12 +124,13 @@ def show_video_player(video_id, video_title):
                                 # Check if we got video
                                 vcodec = info.get('vcodec', 'none')
                                 acodec = info.get('acodec', 'none')
+                                height = info.get('height', 0)
 
-                                st.info(f"📊 다운로드됨: vcodec={vcodec}, acodec={acodec}")
+                                st.info(f"📊 다운로드됨: {height}p, vcodec={vcodec}, acodec={acodec}")
 
                                 if vcodec and vcodec != 'none' and vcodec != 'null' and vcodec.strip():
                                     download_success = True
-                                    st.success(f"✅ 다운로드 성공: {format_desc}")
+                                    st.success(f"✅ 다운로드 성공: {format_desc} - {height}p")
                                     break
                                 else:
                                     st.warning(f"⚠️ {format_desc} 실패 - 비디오 코덱 없음")
