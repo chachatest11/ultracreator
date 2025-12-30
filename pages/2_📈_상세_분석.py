@@ -87,66 +87,76 @@ def show_video_player(video_id, video_title):
                         download_success = False
 
                         # Try from best to fallback strategies
-                        # Priority: mweb (2025 recommended) > ios > tv > android
-                        # Format codes: 137=1080p, 136=720p, 135=480p, 134=360p
-                        # Audio: 140=128k m4a, 139=48k m4a
+                        # Pre-merged formats (no PO Token needed):
+                        # 22 = 720p HD (mp4), 18 = 360p (mp4), 43 = 360p (webm)
+                        # Adaptive formats (may need PO Token):
+                        # 137=1080p, 136=720p, 135=480p, 134=360p + Audio: 140=128k m4a
 
-                        # Strategy 1: Try with browser cookies for authenticated/premium quality
+                        # Strategy: Use pre-merged formats that don't require PO Token
                         format_attempts = [
-                            # Best: mweb with cookies from browser (Firefox preferred)
+                            # Best: Try 720p HD (format 22) - no PO Token needed
                             {
-                                'format': 'bestvideo[height<=1080]+bestaudio/best',
-                                'client': ['mweb', 'ios'],
-                                'cookies': 'firefox',
-                                'desc': '최고 화질 (MWEB + Firefox 쿠키)',
-                                'skip_config': False
-                            },
-                            {
-                                'format': 'bestvideo[height<=1080]+bestaudio/best',
-                                'client': ['mweb', 'ios'],
-                                'cookies': 'chrome',
-                                'desc': '최고 화질 (MWEB + Chrome 쿠키)',
-                                'skip_config': False
-                            },
-                            # Good: mweb without cookies
-                            {
-                                'format': 'bestvideo+bestaudio/best',
-                                'client': ['mweb', 'ios'],
-                                'cookies': None,
-                                'desc': '최고 화질 (MWEB)',
-                                'skip_config': False
-                            },
-                            # Alternative: ios client (good quality, fewer restrictions)
-                            {
-                                'format': 'bestvideo+bestaudio/best',
-                                'client': ['ios'],
-                                'cookies': None,
-                                'desc': '최고 화질 (iOS)',
-                                'skip_config': True
-                            },
-                            # Alternative: tv clients (good for premium content)
-                            {
-                                'format': 'bestvideo+bestaudio/best',
-                                'client': ['tv', 'tv_embedded'],
-                                'cookies': None,
-                                'desc': '최고 화질 (TV)',
-                                'skip_config': False
-                            },
-                            # Fallback: android client
-                            {
-                                'format': 'bestvideo+bestaudio/best',
+                                'format': '22/best[height>=720]/best',
                                 'client': ['android'],
                                 'cookies': None,
-                                'desc': '최고 화질 (Android)',
+                                'desc': '720p HD (format 22, PO Token 불필요)',
                                 'skip_config': True
                             },
-                            # Last resort: web with pre-merged formats
+                            # Try adaptive with android (may work without PO Token)
+                            {
+                                'format': 'bestvideo[height<=1080]+bestaudio/best',
+                                'client': ['android'],
+                                'cookies': None,
+                                'desc': '1080p 어댑티브 (Android)',
+                                'skip_config': True
+                            },
+                            # Try web_embedded (sometimes bypasses restrictions)
+                            {
+                                'format': 'best[height>=720]/best',
+                                'client': ['web_embedded'],
+                                'cookies': None,
+                                'desc': '최고 화질 (Web Embedded)',
+                                'skip_config': False
+                            },
+                            # Try with Chrome cookies
+                            {
+                                'format': '22/bestvideo[height<=1080]+bestaudio/best',
+                                'client': ['android'],
+                                'cookies': 'chrome',
+                                'desc': '720p+ (Android + Chrome 쿠키)',
+                                'skip_config': True
+                            },
+                            # Try mweb with pre-merged
+                            {
+                                'format': '22/best[height>=720]/best',
+                                'client': ['mweb'],
+                                'cookies': None,
+                                'desc': '720p (MWEB)',
+                                'skip_config': False
+                            },
+                            # Try ios with pre-merged
+                            {
+                                'format': '22/best[height>=720]/best',
+                                'client': ['ios'],
+                                'cookies': None,
+                                'desc': '720p (iOS)',
+                                'skip_config': True
+                            },
+                            # Web client with best available
                             {
                                 'format': 'best',
                                 'client': ['web'],
                                 'cookies': None,
-                                'desc': '단일 최고 품질 (Web)',
+                                'desc': '최고 화질 (Web)',
                                 'skip_config': False
+                            },
+                            # Last resort: 360p (format 18)
+                            {
+                                'format': '18/worst',
+                                'client': ['android'],
+                                'cookies': None,
+                                'desc': '360p 최소 화질 (fallback)',
+                                'skip_config': True
                             },
                         ]
 
