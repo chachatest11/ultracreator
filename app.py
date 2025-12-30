@@ -7,7 +7,7 @@ from core import db
 
 # Page config
 st.set_page_config(
-    page_title="🏠 시작 - NexLev Mini",
+    page_title="홈",
     page_icon="🏠",
     layout="wide",
     initial_sidebar_state="expanded"
