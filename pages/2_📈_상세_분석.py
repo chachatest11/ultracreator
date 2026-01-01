@@ -168,6 +168,7 @@ def show_video_player(video_id, video_title):
                                     '-f', strategy['format'],
                                     '-o', output_path,
                                     '--merge-output-format', 'mp4',
+                                    '--remote-components', 'ejs:github',  # Enable remote components for JS challenges
                                 ]
 
                                 # Add cookies if available and needed

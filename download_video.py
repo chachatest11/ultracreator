@@ -112,6 +112,7 @@ def download_youtube_video(video_url, output_filename="video.mp4"):
                     '-f', strategy['format'],
                     '-o', temp_output,
                     '--merge-output-format', 'mp4',
+                    '--remote-components', 'ejs:github',  # Enable remote components for JS challenges
                 ]
 
                 # 쿠키 추가
