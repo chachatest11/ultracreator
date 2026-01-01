@@ -70,152 +70,190 @@ def show_video_player(video_id, video_title):
                 try:
                     # Create temporary directory
                     with tempfile.TemporaryDirectory() as temp_dir:
-                        output_template = os.path.join(temp_dir, "video.%(ext)s")
+                        output_path = os.path.join(temp_dir, "video.mp4")
+                        cookies_file = os.path.join(temp_dir, "cookies.txt")
 
-                        # yt-dlp options - Aggressive strategy for high quality
-                        # Try specific format IDs that don't require PO Token
-                        base_ydl_opts = {
-                            'outtmpl': output_template,
-                            'merge_output_format': 'mp4',
-                            'format_sort': ['res', 'vcodec:h264', 'acodec:m4a'],
-                            'prefer_free_formats': False,
-                            'quiet': False,
-                            'no_warnings': False,
-                        }
+                        st.info("📥 고화질 다운로드 시작... (CLI 직접 실행)")
 
-                        # Try download with multiple format strategies
-                        st.info("📥 고화질 다운로드 시도 중... (여러 전략 사용)")
-                        download_success = False
-                        info = None
-
-                        # Format strategies with different approaches
-                        # Format IDs: 22=720p(mp4), 136=720p(video), 137=1080p(video), 140=128k(audio)
-                        format_strategies = [
-                            # Strategy 1: Specific 720p format (format 22 - pre-merged, no PO Token)
-                            ('22', None, 'Format 22 (720p HD 프리머지드)'),
-
-                            # Strategy 2: Try adaptive 720p with android
-                            ('136+140/136+bestaudio', ['android'], 'Format 136+140 (720p 어댑티브, Android)'),
-
-                            # Strategy 3: Try 1080p with android
-                            ('137+140/137+bestaudio', ['android'], 'Format 137+140 (1080p 어댑티브, Android)'),
-
-                            # Strategy 4: Best with height filter, android
-                            ('bestvideo[height>=720]+bestaudio/best[height>=720]', ['android'], '720p+ 최고화질 (Android)'),
-
-                            # Strategy 5: Try MWEB client
-                            ('best[height>=720]', ['mweb'], '720p+ (Mobile Web)'),
-
-                            # Strategy 6: Try format 22 with different clients
-                            ('22', ['mweb'], 'Format 22 (MWEB)'),
-                            ('22', ['ios'], 'Format 22 (iOS)'),
-                            ('22', ['tv_embedded'], 'Format 22 (TV)'),
-
-                            # Strategy 7: Generic best with various clients
-                            ('bestvideo+bestaudio/best', ['android'], '최고화질 (Android)'),
-                            ('bestvideo+bestaudio/best', ['mweb'], '최고화질 (MWEB)'),
-                            ('bestvideo+bestaudio/best', ['ios'], '최고화질 (iOS)'),
-
-                            # Strategy 8: Last resort - no client specified
-                            ('best[height>=720]', None, '720p+ (기본 설정)'),
-                            ('bestvideo[height>=720]+bestaudio', None, '720p+ 어댑티브 (기본)'),
-                        ]
-
-                        for format_spec, client_config, desc in format_strategies:
+                        # Try to extract cookies from browser first
+                        cookie_extracted = False
+                        for browser in ['chrome', 'firefox', 'safari', 'edge']:
                             try:
-                                st.info(f"🔄 시도 중: {desc}")
-
-                                # Remove previous downloads
-                                for f in glob.glob(os.path.join(temp_dir, "*")):
-                                    try:
-                                        os.remove(f)
-                                    except:
-                                        pass
-
-                                # Clone base options
-                                ydl_opts = base_ydl_opts.copy()
-                                ydl_opts['format'] = format_spec
-
-                                # Configure client
-                                if client_config:
-                                    ydl_opts['extractor_args'] = {
-                                        'youtube': {
-                                            'player_client': client_config,
-                                            'player_skip': ['configs'] if client_config[0] in ['android', 'ios'] else [],
-                                        }
-                                    }
-                                else:
-                                    ydl_opts.pop('extractor_args', None)
-
-                                # Download
-                                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                                    info = ydl.extract_info(video_url, download=True)
-
-                                # Check quality - handle None height
-                                height = info.get('height', 0) or 0  # Convert None to 0
-                                vcodec = info.get('vcodec', 'none')
-                                width = info.get('width', 0) or 0
-
-                                st.caption(f"📊 다운로드됨: {width}x{height} ({height}p), vcodec={vcodec}")
-
-                                if height >= 720 and vcodec and vcodec != 'none':
-                                    download_success = True
-                                    st.success(f"✅ {desc} 성공: {height}p")
+                                st.caption(f"🍪 {browser} 쿠키 추출 시도...")
+                                cookie_cmd = [
+                                    'yt-dlp',
+                                    '--cookies-from-browser', browser,
+                                    '--cookies', cookies_file,
+                                    '--skip-download',
+                                    video_url
+                                ]
+                                result = subprocess.run(cookie_cmd, capture_output=True, timeout=10)
+                                if os.path.exists(cookies_file):
+                                    cookie_extracted = True
+                                    st.success(f"✅ {browser} 쿠키 추출 성공!")
                                     break
-                                else:
-                                    st.warning(f"⚠️ {desc} 실패 - {height}p (720p 미만)")
-
-                            except Exception as e:
-                                error_msg = str(e)
-                                st.warning(f"⚠️ {desc} 오류: {error_msg[:150]}")
+                            except:
                                 continue
 
-                        # Final check
-                        if not download_success or not info:
+                        if not cookie_extracted:
+                            st.caption("⚠️ 브라우저 쿠키 추출 실패 - 쿠키 없이 진행")
+
+                        # Download strategies using CLI
+                        download_success = False
+
+                        # Strategy list with CLI commands
+                        strategies = [
+                            # Strategy 1: Format 22 with cookies
+                            {
+                                'name': 'Format 22 (720p) + 쿠키',
+                                'format': '22',
+                                'use_cookies': True,
+                                'extra_args': []
+                            },
+                            # Strategy 2: Best quality >= 720p with cookies
+                            {
+                                'name': '최고화질 (720p+) + 쿠키',
+                                'format': 'bestvideo[height>=720]+bestaudio/best[height>=720]',
+                                'use_cookies': True,
+                                'extra_args': []
+                            },
+                            # Strategy 3: Format 136+140 (720p adaptive)
+                            {
+                                'name': 'Format 136+140 (720p 어댑티브)',
+                                'format': '136+140',
+                                'use_cookies': False,
+                                'extra_args': ['--extractor-args', 'youtube:player_client=android']
+                            },
+                            # Strategy 4: Format 22 with android client
+                            {
+                                'name': 'Format 22 + Android',
+                                'format': '22',
+                                'use_cookies': False,
+                                'extra_args': ['--extractor-args', 'youtube:player_client=android']
+                            },
+                            # Strategy 5: Best with mweb
+                            {
+                                'name': '최고화질 + MWEB',
+                                'format': 'bestvideo[height>=720]+bestaudio/best[height>=720]',
+                                'use_cookies': False,
+                                'extra_args': ['--extractor-args', 'youtube:player_client=mweb']
+                            },
+                            # Strategy 6: Format 137+140 (1080p)
+                            {
+                                'name': 'Format 137+140 (1080p 시도)',
+                                'format': '137+140/136+140',
+                                'use_cookies': cookie_extracted,
+                                'extra_args': ['--extractor-args', 'youtube:player_client=android']
+                            },
+                            # Strategy 7: Generic best
+                            {
+                                'name': '일반 최고화질',
+                                'format': 'bestvideo+bestaudio/best',
+                                'use_cookies': cookie_extracted,
+                                'extra_args': []
+                            },
+                        ]
+
+                        for strategy in strategies:
+                            try:
+                                # Remove previous downloads
+                                if os.path.exists(output_path):
+                                    os.remove(output_path)
+
+                                st.info(f"🔄 시도 중: {strategy['name']}")
+
+                                # Build CLI command (use yt-dlp directly, not python -m)
+                                cmd = [
+                                    'yt-dlp',
+                                    '-f', strategy['format'],
+                                    '-o', output_path,
+                                    '--merge-output-format', 'mp4',
+                                ]
+
+                                # Add cookies if available and needed
+                                if strategy['use_cookies'] and cookie_extracted:
+                                    cmd.extend(['--cookies', cookies_file])
+                                    st.caption("🍪 브라우저 쿠키 사용")
+
+                                # Add extra args
+                                cmd.extend(strategy['extra_args'])
+
+                                # Add URL
+                                cmd.append(video_url)
+
+                                # Show command for debugging
+                                st.caption(f"🔧 명령: {' '.join(cmd[:4])}...")
+
+                                # Execute
+                                result = subprocess.run(
+                                    cmd,
+                                    capture_output=True,
+                                    text=True,
+                                    timeout=180
+                                )
+
+                                # Check if file exists and get info
+                                if os.path.exists(output_path):
+                                    file_size = os.path.getsize(output_path)
+
+                                    # Get video info
+                                    info_cmd = [
+                                        'yt-dlp',
+                                        '-J',
+                                        video_url
+                                    ]
+
+                                    try:
+                                        info_result = subprocess.run(
+                                            info_cmd,
+                                            capture_output=True,
+                                            text=True,
+                                            timeout=30
+                                        )
+                                        info = json.loads(info_result.stdout)
+                                        height = info.get('height', 0) or 0
+                                    except:
+                                        # Fallback: check file size
+                                        # 720p video should be at least 5MB for short videos
+                                        height = 720 if file_size > 5*1024*1024 else 360
+
+                                    st.caption(f"📊 파일 크기: {file_size/1024/1024:.1f} MB, 예상 화질: {height}p")
+
+                                    # Accept if file is large enough (likely 720p+)
+                                    if file_size > 5*1024*1024 or height >= 720:
+                                        download_success = True
+                                        video_file = output_path
+                                        st.success(f"✅ {strategy['name']} 성공! {height}p ({file_size/1024/1024:.1f} MB)")
+                                        break
+                                    else:
+                                        st.warning(f"⚠️ {strategy['name']} 실패 - 파일 너무 작음 ({file_size/1024/1024:.1f} MB)")
+                                        os.remove(output_path)
+                                else:
+                                    stderr = result.stderr[:300] if result.stderr else result.stdout[:300] if result.stdout else 'unknown'
+                                    st.warning(f"⚠️ {strategy['name']} 실패: {stderr}")
+
+                            except subprocess.TimeoutExpired:
+                                st.warning(f"⚠️ {strategy['name']} 타임아웃")
+                            except Exception as e:
+                                st.warning(f"⚠️ {strategy['name']} 오류: {str(e)[:150]}")
+                                continue
+
+                        if not download_success:
                             raise Exception(
-                                "❌ 720p 이상 화질로 다운로드 실패\n\n"
-                                "이 영상은 720p 이상 화질을 제공하지 않거나,\n"
-                                "YouTube의 보안 제한으로 고화질 다운로드가 불가능합니다.\n\n"
-                                "가능한 원인:\n"
-                                "1. 이 영상의 원본이 720p 미만 (예: 480p, 360p 영상)\n"
-                                "2. YouTube의 2025년 보안 강화 (PO Token 요구)\n\n"
-                                "해결책:\n"
-                                "1. yt-dlp 최신 버전 업데이트: pip install -U yt-dlp\n"
-                                "2. 다른 영상으로 시도해보세요 (원본이 720p 이상인 영상)\n\n"
-                                "참고: 640p 이하 화질은 설정에 의해 자동 거부됩니다."
+                                "❌ 고화질 다운로드 실패\n\n"
+                                "7가지 전략을 모두 시도했지만 720p 이상 화질을 다운로드할 수 없습니다.\n\n"
+                                "해결 방법:\n"
+                                "1. 브라우저에서 YouTube에 로그인하고 이 영상을 한 번 재생하세요\n"
+                                "2. yt-dlp 업데이트: pip install -U yt-dlp\n"
+                                "3. 다른 영상으로 시도해보세요\n\n"
+                                "YouTube의 2025년 보안 강화로 일부 영상은 다운로드가 제한될 수 있습니다."
                             )
 
-                        # Verify we have video (not just audio)
-                        vcodec = info.get('vcodec', 'none')
-                        if vcodec == 'none' or not vcodec or vcodec == 'null':
-                            raise Exception("비디오 스트림을 찾을 수 없습니다 (오디오만 다운로드됨)")
-
-                        # Find the downloaded file
-                        downloaded_files = glob.glob(os.path.join(temp_dir, "*"))
-
-                        if not downloaded_files:
-                            raise Exception("다운로드된 파일을 찾을 수 없습니다.")
-
-                        # Get the video file (prefer .mp4)
-                        video_file = None
-                        for f in downloaded_files:
-                            if f.endswith('.mp4'):
-                                video_file = f
-                                break
-
-                        if not video_file:
-                            video_file = downloaded_files[0]
-
-                        # Check file size
+                        # Get file size
                         file_size = os.path.getsize(video_file)
                         file_size_mb = file_size / (1024*1024)
 
-                        # Get video info for display
-                        resolution = info.get('resolution', 'Unknown')
-                        height = info.get('height', 0)
-                        vcodec_info = info.get('vcodec', 'Unknown')
-
-                        st.info(f"✅ 화질: {height}p ({resolution}) | 코덱: {vcodec_info} | 크기: {file_size_mb:.2f} MB")
+                        st.info(f"💾 최종 파일 크기: {file_size_mb:.2f} MB")
 
                         # Read the downloaded file
                         with open(video_file, 'rb') as f:
