@@ -34,11 +34,30 @@ def show_video_player(video_id, video_title):
     st.markdown("---")
     st.subheader("📥 다운로드 옵션")
 
-    extract_screenshots = st.checkbox(
-        "📸 장면별 스크린샷 추출 (AI 영상 제작용)",
-        value=False,
-        help="각 장면(컷)의 시작과 끝 프레임을 자동 추출합니다"
-    )
+    col_quality, col_screenshot = st.columns([1, 1])
+
+    with col_quality:
+        quality_option = st.selectbox(
+            "🎥 화질 선택",
+            options=[
+                "자동 (최고화질)",
+                "2160p (4K)",
+                "1440p (2K)",
+                "1080p (Full HD)",
+                "720p (HD)",
+                "480p",
+                "360p"
+            ],
+            index=0,
+            help="원하는 화질을 선택하세요. 선택한 화질 이상으로 다운로드됩니다."
+        )
+
+    with col_screenshot:
+        extract_screenshots = st.checkbox(
+            "📸 장면별 스크린샷 추출 (AI 영상 제작용)",
+            value=False,
+            help="각 장면(컷)의 시작과 끝 프레임을 자동 추출합니다"
+        )
 
     if extract_screenshots:
         col_opt1, col_opt2 = st.columns(2)
@@ -73,7 +92,21 @@ def show_video_player(video_id, video_title):
                         output_path = os.path.join(temp_dir, "video.mp4")
                         cookies_file = os.path.join(temp_dir, "cookies.txt")
 
-                        st.info("📥 고화질 다운로드 시작... (CLI 직접 실행)")
+                        # Parse quality selection
+                        quality_map = {
+                            "자동 (최고화질)": {"height": 0, "label": "최고화질"},
+                            "2160p (4K)": {"height": 2160, "label": "2160p"},
+                            "1440p (2K)": {"height": 1440, "label": "1440p"},
+                            "1080p (Full HD)": {"height": 1080, "label": "1080p"},
+                            "720p (HD)": {"height": 720, "label": "720p"},
+                            "480p": {"height": 480, "label": "480p"},
+                            "360p": {"height": 360, "label": "360p"}
+                        }
+                        selected_quality = quality_map[quality_option]
+                        min_height = selected_quality["height"]
+                        quality_label = selected_quality["label"]
+
+                        st.info(f"📥 다운로드 시작... (선택: {quality_label})")
 
                         # Try to extract cookies from browser first
                         cookie_extracted = False
@@ -101,56 +134,73 @@ def show_video_player(video_id, video_title):
                         # Download strategies using CLI
                         download_success = False
 
-                        # Strategy list with CLI commands
+                        # Build format strings based on selected quality
+                        if min_height == 0:
+                            # Auto - best quality
+                            format_filter = ''
+                            format_desc = '최고화질'
+                        else:
+                            # Specific quality
+                            format_filter = f'[height>={min_height}]'
+                            format_desc = f'{min_height}p 이상'
+
+                        # Strategy list with CLI commands (adjusted for selected quality)
                         strategies = [
-                            # Strategy 1: Format 22 with cookies
+                            # Strategy 1: Format 22 with cookies (720p)
                             {
-                                'name': 'Format 22 (720p) + 쿠키',
+                                'name': f'Format 22 (720p) + 쿠키',
                                 'format': '22',
                                 'use_cookies': True,
-                                'extra_args': []
+                                'extra_args': [],
+                                'min_height': 720
                             },
-                            # Strategy 2: Best quality >= 720p with cookies
+                            # Strategy 2: Best quality with selected filter + cookies
                             {
-                                'name': '최고화질 (720p+) + 쿠키',
-                                'format': 'bestvideo[height>=720]+bestaudio/best[height>=720]',
+                                'name': f'{format_desc} + 쿠키',
+                                'format': f'bestvideo{format_filter}+bestaudio/best{format_filter}',
                                 'use_cookies': True,
-                                'extra_args': []
+                                'extra_args': [],
+                                'min_height': min_height
                             },
-                            # Strategy 3: Format 136+140 (720p adaptive)
+                            # Strategy 3: Adaptive formats with android
                             {
-                                'name': 'Format 136+140 (720p 어댑티브)',
-                                'format': '136+140',
+                                'name': f'{format_desc} 어댑티브 (Android)',
+                                'format': f'bestvideo{format_filter}+bestaudio',
                                 'use_cookies': False,
-                                'extra_args': ['--extractor-args', 'youtube:player_client=android']
+                                'extra_args': ['--extractor-args', 'youtube:player_client=android'],
+                                'min_height': min_height
                             },
                             # Strategy 4: Format 22 with android client
                             {
                                 'name': 'Format 22 + Android',
                                 'format': '22',
                                 'use_cookies': False,
-                                'extra_args': ['--extractor-args', 'youtube:player_client=android']
+                                'extra_args': ['--extractor-args', 'youtube:player_client=android'],
+                                'min_height': 720
                             },
                             # Strategy 5: Best with mweb
                             {
-                                'name': '최고화질 + MWEB',
-                                'format': 'bestvideo[height>=720]+bestaudio/best[height>=720]',
+                                'name': f'{format_desc} + MWEB',
+                                'format': f'bestvideo{format_filter}+bestaudio/best{format_filter}',
                                 'use_cookies': False,
-                                'extra_args': ['--extractor-args', 'youtube:player_client=mweb']
+                                'extra_args': ['--extractor-args', 'youtube:player_client=mweb'],
+                                'min_height': min_height
                             },
-                            # Strategy 6: Format 137+140 (1080p)
+                            # Strategy 6: Specific format IDs (1080p/720p)
                             {
-                                'name': 'Format 137+140 (1080p 시도)',
+                                'name': 'Format 137/136 (1080p/720p 시도)',
                                 'format': '137+140/136+140',
                                 'use_cookies': cookie_extracted,
-                                'extra_args': ['--extractor-args', 'youtube:player_client=android']
+                                'extra_args': ['--extractor-args', 'youtube:player_client=android'],
+                                'min_height': 720
                             },
                             # Strategy 7: Generic best
                             {
-                                'name': '일반 최고화질',
-                                'format': 'bestvideo+bestaudio/best',
+                                'name': f'{format_desc} (기본)',
+                                'format': f'bestvideo{format_filter}+bestaudio/best{format_filter}' if format_filter else 'bestvideo+bestaudio/best',
                                 'use_cookies': cookie_extracted,
-                                'extra_args': []
+                                'extra_args': [],
+                                'min_height': min_height
                             },
                         ]
 
@@ -220,15 +270,29 @@ def show_video_player(video_id, video_title):
 
                                     st.caption(f"📊 파일 크기: {file_size/1024/1024:.1f} MB, 예상 화질: {height}p")
 
-                                    # Accept if file is large enough (likely 720p+)
-                                    if file_size > 5*1024*1024 or height >= 720:
-                                        download_success = True
-                                        video_file = output_path
-                                        st.success(f"✅ {strategy['name']} 성공! {height}p ({file_size/1024/1024:.1f} MB)")
-                                        break
+                                    # Check if quality meets user's selection
+                                    strategy_min_height = strategy.get('min_height', 0)
+                                    required_height = max(strategy_min_height, min_height) if min_height > 0 else strategy_min_height
+
+                                    # For auto mode, accept if file is reasonable size
+                                    # For specific quality, check height
+                                    if min_height == 0:
+                                        # Auto mode - accept if file size is reasonable
+                                        if file_size > 5*1024*1024 or height >= 360:
+                                            download_success = True
+                                            video_file = output_path
+                                            st.success(f"✅ {strategy['name']} 성공! {height}p ({file_size/1024/1024:.1f} MB)")
+                                            break
                                     else:
-                                        st.warning(f"⚠️ {strategy['name']} 실패 - 파일 너무 작음 ({file_size/1024/1024:.1f} MB)")
-                                        os.remove(output_path)
+                                        # Specific quality selected
+                                        if height >= required_height or (height == 0 and file_size > 10*1024*1024):
+                                            download_success = True
+                                            video_file = output_path
+                                            st.success(f"✅ {strategy['name']} 성공! {height}p ({file_size/1024/1024:.1f} MB)")
+                                            break
+                                        else:
+                                            st.warning(f"⚠️ {strategy['name']} 실패 - {height}p (요구: {required_height}p 이상)")
+                                            os.remove(output_path)
                                 else:
                                     stderr = result.stderr[:300] if result.stderr else result.stdout[:300] if result.stdout else 'unknown'
                                     st.warning(f"⚠️ {strategy['name']} 실패: {stderr}")
@@ -240,14 +304,16 @@ def show_video_player(video_id, video_title):
                                 continue
 
                         if not download_success:
+                            quality_msg = f"{quality_label}" if min_height > 0 else "고화질"
                             raise Exception(
-                                "❌ 고화질 다운로드 실패\n\n"
-                                "7가지 전략을 모두 시도했지만 720p 이상 화질을 다운로드할 수 없습니다.\n\n"
+                                f"❌ {quality_msg} 다운로드 실패\n\n"
+                                f"7가지 전략을 모두 시도했지만 선택한 화질({quality_label})로 다운로드할 수 없습니다.\n\n"
                                 "해결 방법:\n"
-                                "1. 브라우저에서 YouTube에 로그인하고 이 영상을 한 번 재생하세요\n"
-                                "2. yt-dlp 업데이트: pip install -U yt-dlp\n"
-                                "3. 다른 영상으로 시도해보세요\n\n"
-                                "YouTube의 2025년 보안 강화로 일부 영상은 다운로드가 제한될 수 있습니다."
+                                "1. 더 낮은 화질을 선택해보세요 (예: 480p 또는 360p)\n"
+                                "2. 브라우저에서 YouTube에 로그인하고 이 영상을 한 번 재생하세요\n"
+                                "3. yt-dlp 업데이트: pip install -U yt-dlp\n"
+                                "4. 다른 영상으로 시도해보세요\n\n"
+                                "참고: 일부 영상은 원본 화질이 낮거나 YouTube 제한이 있을 수 있습니다."
                             )
 
                         # Get file size
