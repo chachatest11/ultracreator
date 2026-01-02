@@ -228,6 +228,9 @@ def get_niche_results(niche_run_id: int) -> Dict[str, Any]:
             "unique_channels": metrics.get("unique_channels", 0),
             "top10_concentration": metrics.get("top10_concentration", 0),
             "shorts_ratio": metrics.get("shorts_ratio", 0),
+            "performance_score": metrics.get("performance_score", 0),
+            "competition_score": metrics.get("competition_score", 0),
+            "concentration_score": metrics.get("concentration_score", 0),
             "final_score": metrics.get("final_score", 0),
             "sample_videos": sample_videos,
             "sample_channels": sample_channels
