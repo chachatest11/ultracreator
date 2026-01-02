@@ -21,9 +21,13 @@ with st.sidebar:
 
     # Create new watchlist
     st.subheader("새 워치리스트")
-    new_watchlist_name = st.text_input("워치리스트 이름")
 
-    if st.button("생성", width="stretch"):
+    # Use form to enable Enter key submission
+    with st.form(key="create_watchlist_form"):
+        new_watchlist_name = st.text_input("워치리스트 이름")
+        submit_button = st.form_submit_button("생성", use_container_width=True)
+
+    if submit_button:
         if new_watchlist_name:
             try:
                 db.create_watchlist(new_watchlist_name)

@@ -46,40 +46,40 @@ st.markdown("---")
 # Add new key section
 st.subheader("➕ 새 API 키 추가")
 
-col1, col2 = st.columns([3, 1])
+# Use form to enable Enter key submission
+with st.form(key="add_api_key_form"):
+    col1, col2 = st.columns([3, 1])
 
-with col1:
-    new_key = st.text_input(
-        "API Key",
-        type="password",
-        placeholder="AIzaSy...",
-        help="YouTube Data API v3 키를 입력하세요"
-    )
+    with col1:
+        new_key = st.text_input(
+            "API Key",
+            type="password",
+            placeholder="AIzaSy...",
+            help="YouTube Data API v3 키를 입력하세요"
+        )
 
-with col2:
-    key_name = st.text_input(
-        "키 이름 (선택사항)",
-        placeholder="예: Main Key"
-    )
+    with col2:
+        key_name = st.text_input(
+            "키 이름 (선택사항)",
+            placeholder="예: Main Key"
+        )
 
-col1, col2, col3 = st.columns([1, 1, 3])
+    submit_button = st.form_submit_button("➕ 키 추가", type="primary", use_container_width=True)
 
-with col1:
-    if st.button("➕ 키 추가", type="primary", width="stretch"):
-        if new_key:
-            if storage.add_key(new_key, key_name):
-                st.success(f"✓ API 키가 추가되었습니다: {key_name or '(이름 없음)'}")
-                st.session_state.refresh_trigger += 1
-                st.rerun()
-            else:
-                st.error("✗ 이미 존재하는 키이거나 추가에 실패했습니다.")
+if submit_button:
+    if new_key:
+        if storage.add_key(new_key, key_name):
+            st.success(f"✓ API 키가 추가되었습니다: {key_name or '(이름 없음)'}")
+            st.session_state.refresh_trigger += 1
+            st.rerun()
         else:
-            st.warning("API 키를 입력해주세요.")
+            st.error("✗ 이미 존재하는 키이거나 추가에 실패했습니다.")
+    else:
+        st.warning("API 키를 입력해주세요.")
 
-with col2:
-    # Bulk import
-    if st.button("📥 일괄 가져오기", width="stretch"):
-        st.session_state.show_import = True
+# Bulk import button (outside form)
+if st.button("📥 일괄 가져오기", width="stretch"):
+    st.session_state.show_import = True
 
 # Bulk import dialog
 if st.session_state.get('show_import', False):

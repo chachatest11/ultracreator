@@ -22,44 +22,49 @@ if 'all_videos' not in st.session_state:
 # Input section
 st.subheader("🔍 탐색 설정")
 
-col1, col2, col3, col4 = st.columns([3, 1, 1, 1])
+# Use form to enable Enter key submission
+with st.form(key="niche_search_form"):
+    col1, col2, col3, col4 = st.columns([3, 1, 1, 1])
 
-with col1:
-    keyword = st.text_input(
-        "키워드",
-        placeholder="예: cute animals, cooking shorts, travel tips",
-        help="영어 키워드 권장 (YouTube 검색은 영어가 더 많은 결과를 반환)"
-    )
+    with col1:
+        keyword = st.text_input(
+            "키워드",
+            placeholder="예: cute animals, cooking shorts, travel tips",
+            help="영어 키워드 권장 (YouTube 검색은 영어가 더 많은 결과를 반환)"
+        )
 
-with col2:
-    max_videos = st.number_input(
-        "최대 영상 수",
-        min_value=50,
-        max_value=500,
-        value=200,
-        step=50,
-        help="수집할 영상 개수 (많을수록 정확하지만 느림)"
-    )
+    with col2:
+        max_videos = st.number_input(
+            "최대 영상 수",
+            min_value=50,
+            max_value=500,
+            value=200,
+            step=50,
+            help="수집할 영상 개수 (많을수록 정확하지만 느림)"
+        )
 
-with col3:
-    n_clusters = st.number_input(
-        "클러스터 수",
-        min_value=3,
-        max_value=15,
-        value=8,
-        step=1,
-        help="그룹화할 클러스터 개수"
-    )
+    with col3:
+        n_clusters = st.number_input(
+            "클러스터 수",
+            min_value=3,
+            max_value=15,
+            value=8,
+            step=1,
+            help="그룹화할 클러스터 개수"
+        )
 
-with col4:
-    use_cache = st.checkbox(
-        "캐시 사용",
-        value=True,
-        help="24시간 내 동일 검색 결과 재사용"
-    )
+    with col4:
+        use_cache = st.checkbox(
+            "캐시 사용",
+            value=True,
+            help="24시간 내 동일 검색 결과 재사용"
+        )
 
-# Search button
-if st.button("🚀 탐색 시작", type="primary", width="stretch"):
+    # Search button (form submit button)
+    submit_button = st.form_submit_button("🚀 탐색 시작", type="primary", use_container_width=True)
+
+# Handle form submission
+if submit_button:
     if not keyword:
         st.error("키워드를 입력해주세요.")
     else:

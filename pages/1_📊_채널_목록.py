@@ -21,12 +21,16 @@ if 'confirm_delete_channel_id' not in st.session_state:
 with st.sidebar:
     st.header("➕ 채널 추가")
 
-    channel_input = st.text_input(
-        "채널 ID, 핸들, 또는 URL",
-        placeholder="UC..., @username, https://youtube.com/@..."
-    )
+    # Use form to enable Enter key submission
+    with st.form(key="add_channel_form"):
+        channel_input = st.text_input(
+            "채널 ID, 핸들, 또는 URL",
+            placeholder="UC..., @username, https://youtube.com/@..."
+        )
 
-    if st.button("채널 추가", type="primary", width="stretch"):
+        submit_button = st.form_submit_button("채널 추가", type="primary", use_container_width=True)
+
+    if submit_button:
         if channel_input:
             with st.spinner("채널 데이터를 수집하는 중..."):
                 progress_placeholder = st.empty()
