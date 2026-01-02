@@ -210,6 +210,10 @@ def get_channel_by_id(channel_id: int) -> Optional[Channel]:
         return None
 
 
+# Alias for backward compatibility
+get_channel = get_channel_by_id
+
+
 def get_channel_by_youtube_id(youtube_channel_id: str) -> Optional[Channel]:
     """Get channel by YouTube channel ID"""
     with get_db() as conn:
