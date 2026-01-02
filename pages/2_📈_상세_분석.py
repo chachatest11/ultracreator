@@ -546,8 +546,8 @@ with col2:
 st.markdown("---")
 st.subheader("🎬 최근 영상")
 
-# Video count selector
-col1, col2 = st.columns([2, 6])
+# Video count selector and refresh button
+col1, col2, col3 = st.columns([2, 2, 4])
 with col1:
     video_limit = st.number_input(
         "표시할 영상 수",
@@ -557,6 +557,25 @@ with col1:
         step=10,
         help="최근 영상을 몇 개까지 표시할지 설정합니다"
     )
+
+with col2:
+    st.write("")  # Spacing
+    st.write("")  # Spacing to align with input
+    if st.button("🔄 최근 영상 갱신", type="primary", help="YouTube에서 최신 영상 데이터를 가져옵니다"):
+        with st.spinner(f"{selected_channel.title} 채널의 최신 영상을 가져오는 중..."):
+            try:
+                result = jobs.fetch_channel_data(
+                    selected_channel.youtube_channel_id,
+                    force_refresh=True,
+                    progress_callback=lambda msg: st.info(msg)
+                )
+                if result:
+                    st.success("✅ 최신 영상 데이터를 가져왔습니다!")
+                    st.rerun()
+                else:
+                    st.error("영상 데이터를 가져오는데 실패했습니다.")
+            except Exception as e:
+                st.error(f"오류 발생: {str(e)}")
 
 videos = db.get_videos_by_channel(selected_channel.id, limit=video_limit)
 
