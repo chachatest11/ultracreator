@@ -16,61 +16,30 @@ st.set_page_config(
 # Initialize database
 db.init_db()
 
-# Custom CSS and JavaScript to rename "app" to "홈" in sidebar
+# Custom CSS to rename "app" to "홈" in sidebar
 st.markdown("""
 <style>
-    /* Hide app text in sidebar navigation */
-    [data-testid="stSidebarNav"] ul li:first-child a span {
-        visibility: hidden;
+    /* Hide original app text and replace with 홈 */
+    [data-testid="stSidebarNav"] li:first-child div[data-testid="stMarkdownContainer"] p {
+        font-size: 0;
+    }
+    [data-testid="stSidebarNav"] li:first-child div[data-testid="stMarkdownContainer"] p::before {
+        content: "🏠 홈";
+        font-size: 1rem;
+    }
+
+    /* Fallback for different Streamlit versions */
+    [data-testid="stSidebarNav"] li:first-child a {
         position: relative;
     }
-    [data-testid="stSidebarNav"] ul li:first-child a span::before {
+    [data-testid="stSidebarNav"] li:first-child span {
+        font-size: 0;
+    }
+    [data-testid="stSidebarNav"] li:first-child span::after {
         content: "🏠 홈";
-        visibility: visible;
-        position: absolute;
-        left: 0;
-    }
-    /* Alternative: hide all text and show custom */
-    [data-testid="stSidebarNav"] ul li:first-child a {
-        position: relative;
-    }
-    [data-testid="stSidebarNav"] ul li:first-child a > div {
-        display: none;
-    }
-    [data-testid="stSidebarNav"] ul li:first-child a::after {
-        content: "🏠 홈";
-        position: absolute;
-        left: 2.5rem;
+        font-size: 1rem;
     }
 </style>
-<script>
-    // JavaScript fallback to change text
-    function changeAppToHome() {
-        const navItems = document.querySelectorAll('[data-testid="stSidebarNav"] ul li');
-        if (navItems.length > 0) {
-            const firstItem = navItems[0];
-            const spans = firstItem.querySelectorAll('span');
-            spans.forEach(span => {
-                if (span.textContent === 'app') {
-                    span.textContent = '🏠 홈';
-                }
-            });
-        }
-    }
-    // Run on load and when DOM changes
-    setTimeout(changeAppToHome, 100);
-    setTimeout(changeAppToHome, 500);
-    setTimeout(changeAppToHome, 1000);
-
-    // Watch for changes
-    const observer = new MutationObserver(changeAppToHome);
-    setTimeout(() => {
-        const sidebar = document.querySelector('[data-testid="stSidebarNav"]');
-        if (sidebar) {
-            observer.observe(sidebar, { childList: true, subtree: true });
-        }
-    }, 100);
-</script>
 """, unsafe_allow_html=True)
 
 # Custom CSS for better UI
