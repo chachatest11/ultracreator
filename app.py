@@ -16,21 +16,61 @@ st.set_page_config(
 # Initialize database
 db.init_db()
 
-# Custom CSS to rename "app" to "홈" in sidebar
+# Custom CSS and JavaScript to rename "app" to "홈" in sidebar
 st.markdown("""
 <style>
-    /* Hide the default app label and replace with 홈 */
-    [data-testid="stSidebarNav"] li:first-child a div {
-        font-size: 0;
+    /* Hide app text in sidebar navigation */
+    [data-testid="stSidebarNav"] ul li:first-child a span {
+        visibility: hidden;
+        position: relative;
     }
-    [data-testid="stSidebarNav"] li:first-child a div::before {
+    [data-testid="stSidebarNav"] ul li:first-child a span::before {
         content: "🏠 홈";
-        font-size: 1rem;
+        visibility: visible;
+        position: absolute;
+        left: 0;
     }
-    [data-testid="stSidebarNav"] li:first-child span {
+    /* Alternative: hide all text and show custom */
+    [data-testid="stSidebarNav"] ul li:first-child a {
+        position: relative;
+    }
+    [data-testid="stSidebarNav"] ul li:first-child a > div {
         display: none;
     }
+    [data-testid="stSidebarNav"] ul li:first-child a::after {
+        content: "🏠 홈";
+        position: absolute;
+        left: 2.5rem;
+    }
 </style>
+<script>
+    // JavaScript fallback to change text
+    function changeAppToHome() {
+        const navItems = document.querySelectorAll('[data-testid="stSidebarNav"] ul li');
+        if (navItems.length > 0) {
+            const firstItem = navItems[0];
+            const spans = firstItem.querySelectorAll('span');
+            spans.forEach(span => {
+                if (span.textContent === 'app') {
+                    span.textContent = '🏠 홈';
+                }
+            });
+        }
+    }
+    // Run on load and when DOM changes
+    setTimeout(changeAppToHome, 100);
+    setTimeout(changeAppToHome, 500);
+    setTimeout(changeAppToHome, 1000);
+
+    // Watch for changes
+    const observer = new MutationObserver(changeAppToHome);
+    setTimeout(() => {
+        const sidebar = document.querySelector('[data-testid="stSidebarNav"]');
+        if (sidebar) {
+            observer.observe(sidebar, { childList: true, subtree: true });
+        }
+    }, 100);
+</script>
 """, unsafe_allow_html=True)
 
 # Custom CSS for better UI
