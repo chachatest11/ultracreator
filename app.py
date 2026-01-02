@@ -16,16 +16,19 @@ st.set_page_config(
 # Initialize database
 db.init_db()
 
-# Custom CSS to rename "Home" to "홈" in sidebar
+# Custom CSS to rename "app" to "홈" in sidebar
 st.markdown("""
 <style>
-    /* Hide the default Home label and replace with 홈 */
-    [data-testid="stSidebarNav"] li:first-child a div[data-testid="stMarkdownContainer"] p {
+    /* Hide the default app label and replace with 홈 */
+    [data-testid="stSidebarNav"] li:first-child a div {
         font-size: 0;
     }
-    [data-testid="stSidebarNav"] li:first-child a div[data-testid="stMarkdownContainer"] p::before {
+    [data-testid="stSidebarNav"] li:first-child a div::before {
         content: "🏠 홈";
         font-size: 1rem;
+    }
+    [data-testid="stSidebarNav"] li:first-child span {
+        display: none;
     }
 </style>
 """, unsafe_allow_html=True)
