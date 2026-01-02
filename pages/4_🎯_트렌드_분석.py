@@ -10,6 +10,21 @@ from core import db, jobs
 
 st.set_page_config(page_title="🎯 트렌드 분석", page_icon="🎯", layout="wide")
 
+
+# Video player dialog
+@st.dialog("🎬 영상 재생", width="large")
+def show_video_player(video_id, video_title):
+    """Display video player in a dialog"""
+    st.markdown(f"**{video_title}**")
+
+    # YouTube video player
+    video_url = f"https://www.youtube.com/watch?v={video_id}"
+    st.video(video_url)
+
+    if st.button("❌ 닫기", width="stretch"):
+        st.rerun()
+
+
 st.title("🎯 트렌드 분석")
 st.markdown("키워드 기반 니치 탐색 및 클러스터 분석")
 
@@ -335,25 +350,32 @@ if st.session_state.niche_run_id:
         sample_videos = selected_cluster['sample_videos']
 
         if sample_videos:
-            video_df = pd.DataFrame([
-                {
-                    "제목": v['title'],
-                    "조회수": v['view_count'],
-                    "영상 ID": v['video_id'],
-                    "YouTube 링크": f"https://youtube.com/watch?v={v['video_id']}"
-                }
-                for v in sample_videos
-            ])
+            # Display videos in grid with thumbnails
+            cols_per_row = 5
+            for i in range(0, len(sample_videos), cols_per_row):
+                cols = st.columns(cols_per_row)
 
-            st.dataframe(
-                video_df,
-                width="stretch",
-                hide_index=True,
-                column_config={
-                    "조회수": st.column_config.NumberColumn(format="%d"),
-                    "YouTube 링크": st.column_config.LinkColumn("링크")
-                }
-            )
+                for j in range(cols_per_row):
+                    idx = i + j
+                    if idx < len(sample_videos):
+                        video = sample_videos[idx]
+
+                        with cols[j]:
+                            # Thumbnail
+                            thumbnail_url = f"https://img.youtube.com/vi/{video['video_id']}/hqdefault.jpg"
+                            st.image(thumbnail_url, use_container_width=True)
+
+                            # Play button
+                            if st.button(
+                                "▶️ 재생",
+                                key=f"play_sample_{video['video_id']}",
+                                use_container_width=True
+                            ):
+                                show_video_player(video['video_id'], video['title'])
+
+                            # Video info
+                            st.markdown(f"**{video['title'][:40]}{'...' if len(video['title']) > 40 else ''}**")
+                            st.caption(f"👁️ {video['view_count']:,}")
         else:
             st.info("대표 영상이 없습니다.")
 
@@ -363,23 +385,12 @@ if st.session_state.niche_run_id:
         sample_channels = selected_cluster['sample_channels']
 
         if sample_channels:
-            channel_df = pd.DataFrame([
-                {
-                    "채널 ID": ch['channel_id'],
-                    "이 클러스터 영상 수": ch['video_count'],
-                    "YouTube 링크": f"https://youtube.com/channel/{ch['channel_id']}"
-                }
-                for ch in sample_channels
-            ])
-
-            st.dataframe(
-                channel_df,
-                width="stretch",
-                hide_index=True,
-                column_config={
-                    "YouTube 링크": st.column_config.LinkColumn("링크")
-                }
-            )
+            for i, ch in enumerate(sample_channels):
+                youtube_url = f"https://youtube.com/channel/{ch['channel_id']}"
+                st.markdown(
+                    f"**{i+1}.** 이 클러스터 영상 {ch['video_count']}개 | "
+                    f"[🔗 채널 보기]({youtube_url})"
+                )
         else:
             st.info("주요 채널 정보가 없습니다.")
 
@@ -394,7 +405,7 @@ if st.session_state.niche_run_id:
             st.markdown(f"**총 {len(all_videos)}개의 영상이 수집되었습니다.**")
 
             # Filter options
-            col1, col2, col3 = st.columns([2, 2, 2])
+            col1, col2, col3, col4 = st.columns([2, 2, 2, 1])
 
             with col1:
                 filter_cluster = st.selectbox(
@@ -415,8 +426,14 @@ if st.session_state.niche_run_id:
                     ["조회수 높은순", "조회수 낮은순", "최신순", "오래된순"]
                 )
 
-            # Build video table data
-            videos_table = []
+            with col4:
+                view_mode = st.selectbox(
+                    "보기",
+                    ["그리드", "테이블"]
+                )
+
+            # Build filtered video list
+            filtered_videos = []
             for video in all_videos:
                 # Apply cluster filter
                 if filter_cluster != "전체":
@@ -431,52 +448,109 @@ if st.session_state.niche_run_id:
                 if filter_type == "일반 영상만 (>60초)" and is_short:
                     continue
 
-                videos_table.append({
-                    "클러스터": f"#{video.get('cluster_index', '?')}",
-                    "제목": video['title'][:60] + "..." if len(video['title']) > 60 else video['title'],
-                    "조회수": video['view_count'],
-                    "좋아요": video.get('like_count', 0),
-                    "댓글": video.get('comment_count', 0),
-                    "길이 (초)": video['duration_seconds'],
-                    "유형": "Shorts" if is_short else "일반",
-                    "게시일": video.get('published_at', '')[:10] if video.get('published_at') else "N/A",
-                    "YouTube 링크": f"https://youtube.com/watch?v={video['video_id']}"
-                })
+                filtered_videos.append(video)
 
-            if videos_table:
-                videos_df = pd.DataFrame(videos_table)
-
-                # Sort
+            if filtered_videos:
+                # Sort videos
                 if sort_videos_by == "조회수 높은순":
-                    videos_df = videos_df.sort_values("조회수", ascending=False)
+                    filtered_videos.sort(key=lambda x: x['view_count'], reverse=True)
                 elif sort_videos_by == "조회수 낮은순":
-                    videos_df = videos_df.sort_values("조회수", ascending=True)
+                    filtered_videos.sort(key=lambda x: x['view_count'], reverse=False)
                 elif sort_videos_by == "최신순":
-                    videos_df = videos_df.sort_values("게시일", ascending=False)
+                    filtered_videos.sort(key=lambda x: x.get('published_at', ''), reverse=True)
                 elif sort_videos_by == "오래된순":
-                    videos_df = videos_df.sort_values("게시일", ascending=True)
+                    filtered_videos.sort(key=lambda x: x.get('published_at', ''), reverse=False)
 
-                st.markdown(f"**필터 결과: {len(videos_df)}개 영상**")
+                st.markdown(f"**필터 결과: {len(filtered_videos)}개 영상**")
 
-                st.dataframe(
-                    videos_df,
-                    width="stretch",
-                    hide_index=True,
-                    column_config={
-                        "조회수": st.column_config.NumberColumn(format="%d"),
-                        "좋아요": st.column_config.NumberColumn(format="%d"),
-                        "댓글": st.column_config.NumberColumn(format="%d"),
-                        "YouTube 링크": st.column_config.LinkColumn("링크")
-                    },
-                    height=600
-                )
+                # Display based on view mode
+                if view_mode == "그리드":
+                    # Grid view with thumbnails
+                    cols_per_row = 5
+                    for i in range(0, len(filtered_videos), cols_per_row):
+                        cols = st.columns(cols_per_row)
+
+                        for j in range(cols_per_row):
+                            idx = i + j
+                            if idx < len(filtered_videos):
+                                video = filtered_videos[idx]
+                                is_short = video['duration_seconds'] <= 60
+
+                                with cols[j]:
+                                    # Thumbnail
+                                    thumbnail_url = f"https://img.youtube.com/vi/{video['video_id']}/hqdefault.jpg"
+                                    st.image(thumbnail_url, use_container_width=True)
+
+                                    # Play button
+                                    if st.button(
+                                        "▶️ 재생",
+                                        key=f"play_all_{video['video_id']}",
+                                        use_container_width=True
+                                    ):
+                                        show_video_player(video['video_id'], video['title'])
+
+                                    # Video info
+                                    st.markdown(f"**{video['title'][:40]}{'...' if len(video['title']) > 40 else ''}**")
+
+                                    video_type = "🩳 Shorts" if is_short else "🎥 일반"
+                                    st.caption(f"{video_type} | {video['duration_seconds']}초")
+                                    st.caption(f"👁️ {video['view_count']:,}")
+                                    st.caption(f"#{video.get('cluster_index', '?')}")
+                                    st.markdown("---")
+                else:
+                    # Table view
+                    videos_table = []
+                    for video in filtered_videos:
+                        is_short = video['duration_seconds'] <= 60
+                        videos_table.append({
+                            "클러스터": f"#{video.get('cluster_index', '?')}",
+                            "제목": video['title'][:60] + "..." if len(video['title']) > 60 else video['title'],
+                            "조회수": video['view_count'],
+                            "좋아요": video.get('like_count', 0),
+                            "댓글": video.get('comment_count', 0),
+                            "길이 (초)": video['duration_seconds'],
+                            "유형": "Shorts" if is_short else "일반",
+                            "게시일": video.get('published_at', '')[:10] if video.get('published_at') else "N/A",
+                            "YouTube 링크": f"https://youtube.com/watch?v={video['video_id']}"
+                        })
+
+                    videos_df = pd.DataFrame(videos_table)
+
+                    st.dataframe(
+                        videos_df,
+                        width="stretch",
+                        hide_index=True,
+                        column_config={
+                            "조회수": st.column_config.NumberColumn(format="%d"),
+                            "좋아요": st.column_config.NumberColumn(format="%d"),
+                            "댓글": st.column_config.NumberColumn(format="%d"),
+                            "YouTube 링크": st.column_config.LinkColumn("링크")
+                        },
+                        height=600
+                    )
 
                 # Download button
-                csv = videos_df.to_csv(index=False, encoding='utf-8-sig')
+                csv_data = []
+                for video in filtered_videos:
+                    is_short = video['duration_seconds'] <= 60
+                    csv_data.append({
+                        "클러스터": f"#{video.get('cluster_index', '?')}",
+                        "제목": video['title'],
+                        "조회수": video['view_count'],
+                        "좋아요": video.get('like_count', 0),
+                        "댓글": video.get('comment_count', 0),
+                        "길이 (초)": video['duration_seconds'],
+                        "유형": "Shorts" if is_short else "일반",
+                        "게시일": video.get('published_at', '')[:10] if video.get('published_at') else "N/A",
+                        "YouTube 링크": f"https://youtube.com/watch?v={video['video_id']}"
+                    })
+
+                csv_df = pd.DataFrame(csv_data)
+                csv = csv_df.to_csv(index=False, encoding='utf-8-sig')
                 st.download_button(
                     label="📥 CSV로 다운로드",
                     data=csv,
-                    file_name=f"niche_videos_{len(videos_df)}.csv",
+                    file_name=f"niche_videos_{len(filtered_videos)}.csv",
                     mime="text/csv",
                 )
 
