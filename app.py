@@ -16,31 +16,74 @@ st.set_page_config(
 # Initialize database
 db.init_db()
 
-# Custom CSS to rename "app" to "홈" in sidebar
-st.markdown("""
-<style>
-    /* Hide original app text and replace with 홈 */
-    [data-testid="stSidebarNav"] li:first-child div[data-testid="stMarkdownContainer"] p {
-        font-size: 0;
-    }
-    [data-testid="stSidebarNav"] li:first-child div[data-testid="stMarkdownContainer"] p::before {
-        content: "🏠 홈";
-        font-size: 1rem;
+# Custom JavaScript to rename "app" to "홈" in sidebar
+import streamlit.components.v1 as components
+
+components.html(
+    """
+    <script>
+    function changeAppToHome() {
+        // Wait for Streamlit to fully load
+        const sidebar = parent.document.querySelector('[data-testid="stSidebarNav"]');
+        if (!sidebar) {
+            setTimeout(changeAppToHome, 100);
+            return;
+        }
+
+        // Find all navigation links
+        const navLinks = sidebar.querySelectorAll('li a');
+
+        // Change the first one (app) to 홈
+        if (navLinks.length > 0) {
+            const firstLink = navLinks[0];
+
+            // Try to find and change text in various possible locations
+            const allElements = firstLink.querySelectorAll('*');
+            allElements.forEach(el => {
+                // Check text nodes
+                for (let node of el.childNodes) {
+                    if (node.nodeType === 3 && node.textContent.trim() === 'app') {
+                        node.textContent = '🏠 홈';
+                    }
+                }
+                // Check element text content
+                if (el.textContent.trim() === 'app' && el.children.length === 0) {
+                    el.textContent = '🏠 홈';
+                }
+            });
+
+            // Also check the link itself
+            for (let node of firstLink.childNodes) {
+                if (node.nodeType === 3 && node.textContent.trim() === 'app') {
+                    node.textContent = '🏠 홈';
+                }
+            }
+        }
     }
 
-    /* Fallback for different Streamlit versions */
-    [data-testid="stSidebarNav"] li:first-child a {
-        position: relative;
-    }
-    [data-testid="stSidebarNav"] li:first-child span {
-        font-size: 0;
-    }
-    [data-testid="stSidebarNav"] li:first-child span::after {
-        content: "🏠 홈";
-        font-size: 1rem;
-    }
-</style>
-""", unsafe_allow_html=True)
+    // Run multiple times to catch all rendering states
+    setTimeout(changeAppToHome, 100);
+    setTimeout(changeAppToHome, 300);
+    setTimeout(changeAppToHome, 500);
+    setTimeout(changeAppToHome, 1000);
+    setTimeout(changeAppToHome, 2000);
+
+    // Set up MutationObserver to handle dynamic changes
+    const observer = new MutationObserver(changeAppToHome);
+    setTimeout(() => {
+        const sidebar = parent.document.querySelector('[data-testid="stSidebarNav"]');
+        if (sidebar) {
+            observer.observe(sidebar, {
+                childList: true,
+                subtree: true,
+                characterData: true
+            });
+        }
+    }, 100);
+    </script>
+    """,
+    height=0,
+)
 
 # Custom CSS for better UI
 st.markdown("""
