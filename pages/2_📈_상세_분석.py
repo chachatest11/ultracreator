@@ -5,7 +5,8 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-from datetime import datetime
+from datetime import datetime, timedelta
+import time
 import os
 import tempfile
 import glob
@@ -444,6 +445,37 @@ selected_channel_name = st.selectbox(
 
 selected_channel = channels[channel_names.index(selected_channel_name)]
 
+# Auto-refresh channel data if not recently updated
+# Check if channel was recently updated (within last hour)
+should_refresh = False
+if selected_channel.last_fetched_at:
+    time_since_update = datetime.now() - selected_channel.last_fetched_at.replace(tzinfo=None)
+    # Auto-refresh if data is older than 1 hour
+    if time_since_update > timedelta(hours=1):
+        should_refresh = True
+        st.info(f"📥 마지막 갱신 후 {int(time_since_update.total_seconds() / 60)}분 경과 - 최신 데이터를 가져오는 중...")
+else:
+    # Never fetched before
+    should_refresh = True
+    st.info("📥 채널 데이터를 처음 가져오는 중...")
+
+if should_refresh:
+    with st.spinner(f"{selected_channel.title} 채널의 최신 데이터를 가져오는 중..."):
+        try:
+            result = jobs.fetch_channel_data(
+                selected_channel.youtube_channel_id,
+                force_refresh=True,
+                progress_callback=lambda msg: None  # Silent update
+            )
+            if result:
+                st.success("✅ 최신 데이터를 가져왔습니다!")
+                # Reload the channel to get updated last_fetched_at
+                selected_channel = db.get_channel(selected_channel.id)
+                # Small delay to ensure UI updates
+                time.sleep(0.5)
+        except Exception as e:
+            st.warning(f"⚠️ 자동 갱신 실패: {str(e)[:100]}... 기존 데이터를 사용합니다.")
+
 # Get channel metrics
 channel_metrics = metrics.get_channel_metrics(selected_channel.id)
 
@@ -561,7 +593,7 @@ with col1:
 with col2:
     st.write("")  # Spacing
     st.write("")  # Spacing to align with input
-    if st.button("🔄 최근 영상 갱신", type="primary", help="YouTube에서 최신 영상 데이터를 가져옵니다"):
+    if st.button("🔄 지금 갱신", type="secondary", help="즉시 YouTube에서 최신 데이터를 가져옵니다 (1시간 이내 갱신된 경우에도 강제 갱신)"):
         with st.spinner(f"{selected_channel.title} 채널의 최신 영상을 가져오는 중..."):
             try:
                 result = jobs.fetch_channel_data(
