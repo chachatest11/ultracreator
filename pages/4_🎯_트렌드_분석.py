@@ -380,6 +380,16 @@ if st.session_state.niche_run_id:
                             channel_name = video.get('channel_title', 'Unknown')
                             st.caption(f"📺 {channel_name[:30]}{'...' if len(channel_name) > 30 else ''}")
 
+                            # Subscriber count
+                            subscriber_count = video.get('subscriber_count', 0)
+                            if subscriber_count > 0:
+                                if subscriber_count >= 1000000:
+                                    st.caption(f"👥 {subscriber_count / 1000000:.1f}M 구독자")
+                                elif subscriber_count >= 1000:
+                                    st.caption(f"👥 {subscriber_count / 1000:.1f}K 구독자")
+                                else:
+                                    st.caption(f"👥 {subscriber_count:,} 구독자")
+
                             st.caption(f"👁️ {video['view_count']:,}")
 
                             # Upload date
@@ -508,6 +518,16 @@ if st.session_state.niche_run_id:
                                     channel_name = video.get('channel_title', 'Unknown')
                                     st.caption(f"📺 {channel_name[:30]}{'...' if len(channel_name) > 30 else ''}")
 
+                                    # Subscriber count
+                                    subscriber_count = video.get('subscriber_count', 0)
+                                    if subscriber_count > 0:
+                                        if subscriber_count >= 1000000:
+                                            st.caption(f"👥 {subscriber_count / 1000000:.1f}M 구독자")
+                                        elif subscriber_count >= 1000:
+                                            st.caption(f"👥 {subscriber_count / 1000:.1f}K 구독자")
+                                        else:
+                                            st.caption(f"👥 {subscriber_count:,} 구독자")
+
                                     video_type = "🩳 Shorts" if is_short else "🎥 일반"
                                     st.caption(f"{video_type} | {video['duration_seconds']}초")
                                     st.caption(f"👁️ {video['view_count']:,}")
@@ -527,6 +547,7 @@ if st.session_state.niche_run_id:
                             "클러스터": f"#{video.get('cluster_index', '?')}",
                             "제목": video['title'][:60] + "..." if len(video['title']) > 60 else video['title'],
                             "채널명": video.get('channel_title', 'Unknown')[:30],
+                            "구독자 수": video.get('subscriber_count', 0),
                             "조회수": video['view_count'],
                             "좋아요": video.get('like_count', 0),
                             "댓글": video.get('comment_count', 0),
@@ -543,6 +564,7 @@ if st.session_state.niche_run_id:
                         width="stretch",
                         hide_index=True,
                         column_config={
+                            "구독자 수": st.column_config.NumberColumn(format="%d"),
                             "조회수": st.column_config.NumberColumn(format="%d"),
                             "좋아요": st.column_config.NumberColumn(format="%d"),
                             "댓글": st.column_config.NumberColumn(format="%d"),
@@ -559,6 +581,7 @@ if st.session_state.niche_run_id:
                         "클러스터": f"#{video.get('cluster_index', '?')}",
                         "제목": video['title'],
                         "채널명": video.get('channel_title', 'Unknown'),
+                        "구독자 수": video.get('subscriber_count', 0),
                         "조회수": video['view_count'],
                         "좋아요": video.get('like_count', 0),
                         "댓글": video.get('comment_count', 0),

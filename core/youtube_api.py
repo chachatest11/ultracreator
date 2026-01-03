@@ -372,6 +372,7 @@ def get_videos_info(video_ids: List[str]) -> List[Dict[str, Any]]:
                 videos.append({
                     "video_id": item["id"],
                     "channel_id": snippet.get("channelId", ""),
+                    "channel_title": snippet.get("channelTitle", "Unknown"),
                     "title": snippet.get("title", ""),
                     "description": snippet.get("description", ""),
                     "published_at": snippet.get("publishedAt", ""),

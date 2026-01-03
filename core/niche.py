@@ -75,6 +75,29 @@ class NicheExplorer:
         for i, video in enumerate(videos_data):
             video['cluster_index'] = int(labels[i])
 
+        # Fetch subscriber counts for all unique channels
+        unique_channel_ids = list(set(v['channel_id'] for v in videos_data))
+        channel_subscriber_map = {}
+
+        try:
+            # Fetch channel info in batches of 50 (API limit)
+            for i in range(0, len(unique_channel_ids), 50):
+                batch_ids = unique_channel_ids[i:i + 50]
+                for channel_id in batch_ids:
+                    try:
+                        channel_info = youtube_api.get_channel_info(channel_id)
+                        channel_subscriber_map[channel_id] = channel_info.get('subscriber_count', 0)
+                    except:
+                        # If individual channel fetch fails, use 0
+                        channel_subscriber_map[channel_id] = 0
+        except:
+            # If channel fetching fails entirely, continue without subscriber counts
+            pass
+
+        # Add subscriber count to each video
+        for video in videos_data:
+            video['subscriber_count'] = channel_subscriber_map.get(video['channel_id'], 0)
+
         # Create niche run
         niche_run = NicheRun(
             keyword=keyword,
@@ -129,6 +152,7 @@ class NicheExplorer:
                         "view_count": v['view_count'],
                         "channel_id": v['channel_id'],
                         "channel_title": v.get('channel_title', 'Unknown'),
+                        "subscriber_count": v.get('subscriber_count', 0),
                         "published_at": v.get('published_at', '')
                     }
                     for v in sample_videos
