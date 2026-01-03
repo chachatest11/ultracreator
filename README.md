@@ -28,6 +28,13 @@ YouTube 채널 분석 및 니치 탐색 도구 (해외 양산형 쇼츠 리서�
 - 니치 점수화 (성과/경쟁/집중도)
 - 진입 가능성 분석
 
+### 🌐 Keyword Explorer
+- YouTube 카테고리별 트렌딩 키워드 수집
+- 7개 언어 자동 번역 (한국어, 영어, 일본어, 중국어, 스페인어, 힌디어, 러시아어)
+- Google Trends 기반 실시간 데이터
+- DeepL/Google Translate 번역 지원
+- 24시간 캐싱으로 빠른 재조회
+
 ## 시작하기
 
 ### 1. 사전 요구사항
@@ -93,7 +100,18 @@ YOUTUBE_API_KEYS=AIzaSyXXXXXXXXXXXXXXX1,AIzaSyXXXXXXXXXXXXXXX2,AIzaSyXXXXXXXXXXX
 
 **중요:** `.env` 파일에 실제 API 키를 입력하세요.
 
-#### Option 3: UI에서 관리 (가장 편리! 🎯)
+#### Option 3: DeepL API 키 (선택사항, 키워드 탐색 기능용)
+
+키워드 번역 기능에서 더 높은 품질의 번역을 사용하려면:
+
+```bash
+DEEPL_API_KEY=your_deepl_api_key_here
+```
+
+- 무료 계정: https://www.deepl.com/pro-api (월 50만 글자 무료)
+- 설정하지 않으면 Google Translate (무료)가 자동으로 사용됩니다
+
+#### Option 4: UI에서 관리 (가장 편리! 🎯)
 
 앱을 실행한 후 **API Key Manager** 페이지에서 키를 추가/삭제/관리할 수 있습니다!
 
@@ -158,6 +176,23 @@ streamlit run app.py
    - 대표 영상/채널 참고
    - 발견한 채널을 Dashboard에 추가
 
+### 키워드 탐색
+
+1. **Keyword Explorer** 페이지 이동
+2. YouTube 카테고리 선택:
+   - 게임, 스포츠, 음악, 영화/애니메이션 등 12개 카테고리
+3. (선택사항) 커스텀 키워드 입력
+4. "🔎 검색" 버튼 클릭
+5. 결과 확인:
+   - 7개 언어로 번역된 트렌딩 키워드 목록
+   - CSV로 다운로드하여 활용
+   - 24시간 동안 결과가 캐싱됨
+
+**참고:** 이 기능을 사용하려면 다음 패키지 설치가 필요합니다:
+```bash
+pip install pytrends deepl deep-translator
+```
+
 ## 주요 지표 설명
 
 ### 업로드 주기
@@ -189,19 +224,24 @@ streamlit run app.py
 ultracreator/
 ├── app.py                      # 메인 진입점
 ├── pages/
-│   ├── 1_Dashboard.py          # 대시보드
-│   ├── 2_Channel_Detail.py     # 채널 상세
-│   ├── 3_Watchlists.py         # 워치리스트
-│   └── 4_Niche_Explorer.py     # 니치 탐색
+│   ├── 1_📊_채널_목록.py        # 채널 목록/대시보드
+│   ├── 2_📈_상세_분석.py        # 채널 상세 분석
+│   ├── 3_⭐_그룹_관리.py        # 워치리스트
+│   ├── 4_🎯_트렌드_분석.py      # 니치 탐색
+│   ├── 5_🔑_API_키_관리.py     # API 키 관리
+│   └── 6_🌐_키워드_탐색.py      # 키워드 탐색 (NEW!)
 ├── core/
 │   ├── youtube_api.py          # YouTube API 클라이언트
 │   ├── db.py                   # 데이터베이스 작업
 │   ├── models.py               # 데이터 모델
 │   ├── metrics.py              # 지표 계산
 │   ├── niche.py                # 니치 탐색 엔진
-│   └── jobs.py                 # 데이터 수집 작업
+│   ├── trends.py               # 트렌드 & 번역 (NEW!)
+│   ├── jobs.py                 # 데이터 수집 작업
+│   └── api_key_storage.py      # API 키 저장소
 ├── requirements.txt            # Python 의존성
 ├── .env                        # 환경 변수 (직접 생성)
+├── .env.example                # 환경 변수 예시
 ├── db.sqlite                   # SQLite 데이터베이스 (자동 생성)
 └── README.md                   # 이 파일
 ```
@@ -254,23 +294,41 @@ Channel not found
 - 클러스터 수를 줄이세요 (5~8개)
 - 캐시 사용 옵션을 활성화하세요
 
+### 키워드 탐색 기능 오류
+```
+ModuleNotFoundError: No module named 'pytrends'
+```
+→ 키워드 탐색 기능을 사용하려면 추가 패키지 설치가 필요합니다:
+```bash
+pip install pytrends deepl deep-translator
+```
+또는 전체 의존성을 다시 설치:
+```bash
+pip install -r requirements.txt
+```
+
 ## 확장 포인트 (TODO)
 
+- [x] 다국어 키워드 탐색 (완료!)
+- [x] API 키 UI 관리 (완료!)
 - [ ] OAuth 2.0 인증 추가 (개인 채널 상세 정보)
 - [ ] 댓글 분석 기능
 - [ ] 태그/카테고리 분석
 - [ ] 자동 리포트 생성 (PDF/Excel)
 - [ ] 알림 설정 (특정 조건 달성 시)
 - [ ] 더 많은 영상 수집 (페이지네이션 개선)
-- [ ] 다국어 지원
 
 ## 기술 스택
 
 - **Frontend**: Streamlit
 - **Backend**: Python
 - **Database**: SQLite
-- **API**: YouTube Data API v3
+- **API**:
+  - YouTube Data API v3
+  - DeepL Translation API (optional)
 - **ML/NLP**: sentence-transformers, scikit-learn
+- **Trends**: pytrends (Google Trends)
+- **Translation**: DeepL, Google Translate (deep-translator)
 - **Visualization**: Plotly
 
 ## 라이선스

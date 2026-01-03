@@ -11,7 +11,14 @@ import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from core import db
-from core.trends import TrendsExplorer, YOUTUBE_CATEGORIES, LANGUAGES
+
+# Try to import trends module - show error if dependencies not installed
+try:
+    from core.trends import TrendsExplorer, YOUTUBE_CATEGORIES, LANGUAGES
+    DEPENDENCIES_INSTALLED = True
+except ImportError as e:
+    DEPENDENCIES_INSTALLED = False
+    IMPORT_ERROR = str(e)
 
 # Page config
 st.set_page_config(
@@ -28,6 +35,27 @@ st.title("🌐 YouTube 다국어 키워드 검색기")
 st.markdown("""
 카테고리/키워드 입력 시 100개의 세부 주제 및 키워드를 7개 언어로 번역합니다.
 """)
+
+# Check if dependencies are installed
+if not DEPENDENCIES_INSTALLED:
+    st.error(f"""
+    ❌ **필수 패키지가 설치되지 않았습니다**
+
+    이 기능을 사용하려면 다음 패키지를 설치해야 합니다:
+
+    ```bash
+    pip install pytrends deepl deep-translator
+    ```
+
+    또는 전체 의존성 설치:
+
+    ```bash
+    pip install -r requirements.txt
+    ```
+
+    **오류 세부정보**: {IMPORT_ERROR}
+    """)
+    st.stop()
 
 st.markdown("---")
 
