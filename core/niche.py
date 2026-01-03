@@ -104,10 +104,15 @@ class NicheExplorer:
                 reverse=True
             )[:5]
 
-            # Get unique channels
+            # Get unique channels with titles
             channel_counter = Counter(v['channel_id'] for v in cluster_videos)
+            channel_titles = {v['channel_id']: v.get('channel_title', 'Unknown') for v in cluster_videos}
             sample_channels = [
-                {"channel_id": ch_id, "video_count": count}
+                {
+                    "channel_id": ch_id,
+                    "channel_title": channel_titles.get(ch_id, 'Unknown'),
+                    "video_count": count
+                }
                 for ch_id, count in channel_counter.most_common(5)
             ]
 
@@ -122,7 +127,9 @@ class NicheExplorer:
                         "video_id": v['video_id'],
                         "title": v['title'],
                         "view_count": v['view_count'],
-                        "channel_id": v['channel_id']
+                        "channel_id": v['channel_id'],
+                        "channel_title": v.get('channel_title', 'Unknown'),
+                        "published_at": v.get('published_at', '')
                     }
                     for v in sample_videos
                 ]),

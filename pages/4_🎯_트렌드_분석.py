@@ -375,7 +375,17 @@ if st.session_state.niche_run_id:
 
                             # Video info
                             st.markdown(f"**{video['title'][:40]}{'...' if len(video['title']) > 40 else ''}**")
+
+                            # Channel name
+                            channel_name = video.get('channel_title', 'Unknown')
+                            st.caption(f"📺 {channel_name[:30]}{'...' if len(channel_name) > 30 else ''}")
+
                             st.caption(f"👁️ {video['view_count']:,}")
+
+                            # Upload date
+                            upload_date = video.get('published_at', '')[:10] if video.get('published_at') else "N/A"
+                            if upload_date != "N/A":
+                                st.caption(f"📅 {upload_date}")
         else:
             st.info("대표 영상이 없습니다.")
 
@@ -387,8 +397,10 @@ if st.session_state.niche_run_id:
         if sample_channels:
             for i, ch in enumerate(sample_channels):
                 youtube_url = f"https://youtube.com/channel/{ch['channel_id']}"
+                channel_name = ch.get('channel_title', 'Unknown')
                 st.markdown(
-                    f"**{i+1}.** 이 클러스터 영상 {ch['video_count']}개 | "
+                    f"**{i+1}. {channel_name}** - "
+                    f"이 클러스터 영상 {ch['video_count']}개 | "
                     f"[🔗 채널 보기]({youtube_url})"
                 )
         else:
@@ -492,9 +504,18 @@ if st.session_state.niche_run_id:
                                     # Video info
                                     st.markdown(f"**{video['title'][:40]}{'...' if len(video['title']) > 40 else ''}**")
 
+                                    # Channel name
+                                    channel_name = video.get('channel_title', 'Unknown')
+                                    st.caption(f"📺 {channel_name[:30]}{'...' if len(channel_name) > 30 else ''}")
+
                                     video_type = "🩳 Shorts" if is_short else "🎥 일반"
                                     st.caption(f"{video_type} | {video['duration_seconds']}초")
                                     st.caption(f"👁️ {video['view_count']:,}")
+
+                                    # Upload date
+                                    upload_date = video.get('published_at', '')[:10] if video.get('published_at') else "N/A"
+                                    st.caption(f"📅 {upload_date}")
+
                                     st.caption(f"#{video.get('cluster_index', '?')}")
                                     st.markdown("---")
                 else:
@@ -505,6 +526,7 @@ if st.session_state.niche_run_id:
                         videos_table.append({
                             "클러스터": f"#{video.get('cluster_index', '?')}",
                             "제목": video['title'][:60] + "..." if len(video['title']) > 60 else video['title'],
+                            "채널명": video.get('channel_title', 'Unknown')[:30],
                             "조회수": video['view_count'],
                             "좋아요": video.get('like_count', 0),
                             "댓글": video.get('comment_count', 0),
@@ -536,6 +558,7 @@ if st.session_state.niche_run_id:
                     csv_data.append({
                         "클러스터": f"#{video.get('cluster_index', '?')}",
                         "제목": video['title'],
+                        "채널명": video.get('channel_title', 'Unknown'),
                         "조회수": video['view_count'],
                         "좋아요": video.get('like_count', 0),
                         "댓글": video.get('comment_count', 0),
