@@ -27,3 +27,8 @@ sentence-transformers>=2.2.0
 
 # Environment Variables
 python-dotenv>=1.0.0
+
+# Trends & Translation
+pytrends>=4.9.0
+deepl>=1.17.0
+deep-translator>=1.11.0

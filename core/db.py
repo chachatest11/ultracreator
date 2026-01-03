@@ -174,6 +174,26 @@ def init_db():
             ON niche_clusters(niche_run_id)
         """)
 
+        # trending_keywords table (for caching)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS trending_keywords (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                category TEXT NOT NULL,
+                keyword TEXT NOT NULL,
+                translations_json TEXT DEFAULT '{}',
+                fetched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                rank INTEGER DEFAULT 0
+            )
+        """)
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_trending_keywords_category
+            ON trending_keywords(category)
+        """)
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_trending_keywords_fetched_at
+            ON trending_keywords(fetched_at)
+        """)
+
         conn.commit()
 
 
@@ -573,3 +593,88 @@ def get_niche_clusters(niche_run_id: int) -> List[NicheCluster]:
             ORDER BY cluster_index
         """, (niche_run_id,))
         return [NicheCluster.from_db_row(row) for row in cursor.fetchall()]
+
+
+# ========== Trending Keywords Operations ==========
+
+def save_trending_keywords(category: str, keywords_data: List[Dict[str, Any]]) -> None:
+    """
+    Save trending keywords to database (cache)
+
+    Args:
+        category: YouTube category name
+        keywords_data: List of dictionaries with 'keyword' and 'translations'
+    """
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        # Delete old keywords for this category (keep cache fresh)
+        cursor.execute("""
+            DELETE FROM trending_keywords
+            WHERE category = ?
+        """, (category,))
+
+        # Insert new keywords
+        for rank, item in enumerate(keywords_data, start=1):
+            keyword = item['keyword']
+            translations = item['translations']
+            translations_json = json.dumps(translations, ensure_ascii=False)
+
+            cursor.execute("""
+                INSERT INTO trending_keywords
+                (category, keyword, translations_json, rank, fetched_at)
+                VALUES (?, ?, ?, ?, ?)
+            """, (category, keyword, translations_json, rank, datetime.now()))
+
+
+def get_trending_keywords(
+    category: str,
+    max_age_hours: int = 24
+) -> Optional[List[Dict[str, Any]]]:
+    """
+    Get cached trending keywords for category
+
+    Args:
+        category: YouTube category name
+        max_age_hours: Maximum age of cache in hours
+
+    Returns:
+        List of keyword data or None if cache expired
+    """
+    with get_db() as conn:
+        cursor = conn.cursor()
+        threshold = datetime.now() - timedelta(hours=max_age_hours)
+
+        cursor.execute("""
+            SELECT keyword, translations_json, rank
+            FROM trending_keywords
+            WHERE category = ? AND fetched_at >= ?
+            ORDER BY rank
+        """, (category, threshold))
+
+        rows = cursor.fetchall()
+
+        if not rows:
+            return None
+
+        # Convert to list of dictionaries
+        results = []
+        for row in rows:
+            results.append({
+                'keyword': row['keyword'],
+                'translations': json.loads(row['translations_json'])
+            })
+
+        return results
+
+
+def clear_old_trending_keywords(days: int = 7) -> None:
+    """Delete trending keywords older than specified days"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        threshold = datetime.now() - timedelta(days=days)
+
+        cursor.execute("""
+            DELETE FROM trending_keywords
+            WHERE fetched_at < ?
+        """, (threshold,))
