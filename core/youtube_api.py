@@ -470,6 +470,58 @@ def search_related_videos(video_id: str, max_results: int = 20) -> List[str]:
         raise YouTubeAPIError(f"Failed to parse related videos: {e}")
 
 
+def get_popular_videos_by_category(
+    category_id: int,
+    max_results: int = 100,
+    region_code: str = 'KR'
+) -> List[str]:
+    """
+    Get most popular videos for a specific category
+
+    Args:
+        category_id: YouTube category ID (e.g., 20 for Gaming, 17 for Sports)
+        max_results: Maximum number of results (up to 200)
+        region_code: Region code (e.g., 'KR', 'US', 'JP')
+
+    Returns:
+        List of video IDs
+    """
+    url = f"{BASE_URL}/videos"
+    video_ids = []
+
+    try:
+        # YouTube API allows fetching most popular videos
+        # with videoCategoryId filter
+        params = {
+            "part": "id",
+            "chart": "mostPopular",
+            "videoCategoryId": str(category_id),
+            "regionCode": region_code,
+            "maxResults": min(50, max_results)  # API max is 50 per request
+        }
+
+        # For more than 50, use pagination
+        while len(video_ids) < max_results:
+            data = _make_api_request(url, params)
+
+            for item in data.get("items", []):
+                video_id = item.get("id")
+                if video_id:
+                    video_ids.append(video_id)
+
+            # Check if there's a next page
+            next_page_token = data.get("nextPageToken")
+            if not next_page_token or len(video_ids) >= max_results:
+                break
+
+            params["pageToken"] = next_page_token
+
+        return video_ids[:max_results]
+
+    except (KeyError, ValueError) as e:
+        raise YouTubeAPIError(f"Failed to fetch popular videos: {e}")
+
+
 def parse_channel_identifier(identifier: str) -> Tuple[str, str]:
     """
     Parse channel identifier and determine type

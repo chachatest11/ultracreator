@@ -4,10 +4,15 @@ YouTube Trends & Translation Module
 import os
 from typing import List, Dict, Optional
 from datetime import datetime, timedelta
+from collections import Counter
+import re
 from pytrends.request import TrendReq
 from deep_translator import GoogleTranslator
 import deepl
 from dotenv import load_dotenv
+
+# Import YouTube API
+from . import youtube_api
 
 load_dotenv()
 
@@ -136,6 +141,59 @@ class TrendsExplorer:
         self.pytrends = TrendReq(hl='ko-KR', tz=540)  # Korea timezone
         self.translator = TranslationManager()
 
+    def _extract_keywords_from_titles(self, titles: List[str], num_keywords: int = 20) -> List[str]:
+        """
+        Extract trending keywords from video titles using frequency analysis
+
+        Args:
+            titles: List of video titles
+            num_keywords: Number of keywords to extract
+
+        Returns:
+            List of extracted keywords
+        """
+        # Korean stopwords (common words to filter out)
+        stopwords = {
+            '영상', '동영상', '비디오', '클립', '모음', '모음집', '총집편',
+            '그리고', '하지만', '그런데', '그래서', '때문에', '입니다', '합니다',
+            '있는', '없는', '있다', '없다', '것을', '것이', '것은', '이것', '저것',
+            '오늘', '어제', '내일', '지금', '이번', '다음', '최근', '새로운',
+            '유튜브', 'youtube', 'shorts', '쇼츠',
+            '보기', '보는', '보다', '봐야', '보세요', '보여', '보여주', '보여줘',
+            '이렇게', '저렇게', '어떻게', '왜', '무엇', '언제', '어디',
+            '년', '월', '일', '시', '분', '초',
+            'the', 'and', 'for', 'with', 'this', 'that', 'from', 'what', 'when',
+            'where', 'how', 'why', 'best', 'top', 'new', 'latest'
+        }
+
+        # Extract all words from titles (2+ characters)
+        word_counter = Counter()
+
+        for title in titles:
+            # Remove special characters and split
+            words = re.findall(r'[가-힣a-zA-Z0-9]+', title)
+
+            for word in words:
+                # Filter: length >= 2, not a number, not stopword
+                word_lower = word.lower()
+                if (len(word) >= 2 and
+                    not word.isdigit() and
+                    word_lower not in stopwords and
+                    word not in stopwords):
+                    word_counter[word] += 1
+
+        # Get most common keywords
+        common_keywords = word_counter.most_common(num_keywords * 3)  # Get more for filtering
+
+        # Post-process: keep only keywords that appear in multiple videos
+        min_frequency = max(2, len(titles) // 50)  # At least 2% of videos
+        filtered_keywords = [
+            word for word, count in common_keywords
+            if count >= min_frequency
+        ][:num_keywords]
+
+        return filtered_keywords
+
     def get_trending_keywords(
         self,
         category: str,
@@ -143,12 +201,12 @@ class TrendsExplorer:
         timeframe: str = 'now 7-d'
     ) -> List[str]:
         """
-        Get trending keywords for a YouTube category
+        Get trending keywords for a YouTube category by analyzing popular videos
 
         Args:
             category: Category name (e.g., '게임', '스포츠')
             num_keywords: Number of keywords to return
-            timeframe: Time range ('now 1-d', 'now 7-d', 'today 1-m', etc.)
+            timeframe: Time range (not used with YouTube API)
 
         Returns:
             List of trending keywords
@@ -158,44 +216,41 @@ class TrendsExplorer:
 
         category_id = YOUTUBE_CATEGORIES[category]
 
-        # Get trending searches for this category
-        # Note: pytrends doesn't directly support YouTube categories,
-        # so we'll use related search terms for the category name
         try:
-            # Build payload for the category
-            self.pytrends.build_payload(
-                kw_list=[category],
-                cat=category_id,  # YouTube category filter
-                timeframe=timeframe,
-                geo='KR'  # Korea region
+            # Get popular videos from YouTube API
+            print(f"📊 '{category}' 카테고리의 인기 영상 제목 분석 중...")
+
+            # Fetch popular videos for this category
+            video_ids = youtube_api.get_popular_videos_by_category(
+                category_id,
+                max_results=100,  # Analyze top 100 videos
+                region_code='KR'  # Korea region
             )
 
-            # Get related queries
-            related_queries = self.pytrends.related_queries()
+            if not video_ids:
+                print(f"⚠️  인기 영상을 찾을 수 없습니다. 대체 방법 사용...")
+                return self._generate_category_keywords(category, num_keywords)
 
-            keywords = []
+            # Get video details (titles)
+            videos = youtube_api.get_videos_info(video_ids)
 
-            # Extract rising and top queries
-            if category in related_queries:
-                queries_data = related_queries[category]
+            if not videos:
+                print(f"⚠️  영상 정보를 가져올 수 없습니다. 대체 방법 사용...")
+                return self._generate_category_keywords(category, num_keywords)
 
-                # Get rising queries (trending up)
-                if 'rising' in queries_data and queries_data['rising'] is not None:
-                    rising = queries_data['rising']['query'].tolist()
-                    keywords.extend(rising[:num_keywords // 2])
+            # Extract titles
+            titles = [video['title'] for video in videos if video.get('title')]
 
-                # Get top queries (most searched)
-                if 'top' in queries_data and queries_data['top'] is not None:
-                    top = queries_data['top']['query'].tolist()
-                    keywords.extend(top[:num_keywords // 2])
+            print(f"✅ {len(titles)}개 영상 제목 수집 완료")
 
-            # Remove duplicates and limit
-            keywords = list(dict.fromkeys(keywords))[:num_keywords]
+            # Extract keywords from titles
+            keywords = self._extract_keywords_from_titles(titles, num_keywords)
 
-            # If we don't have enough keywords, generate some based on category
             if len(keywords) < 5:
-                keywords = self._generate_category_keywords(category, num_keywords)
+                print(f"⚠️  추출된 키워드가 부족합니다. 대체 방법 사용...")
+                return self._generate_category_keywords(category, num_keywords)
 
+            print(f"✅ {len(keywords)}개 트렌딩 키워드 추출 완료")
             return keywords
 
         except Exception as e:
