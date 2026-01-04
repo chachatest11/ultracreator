@@ -32,12 +32,12 @@ YOUTUBE_CATEGORIES = {
     "음악": 10
 }
 
-# Language codes for translation
+# Language codes for translation (Google Translate codes)
 LANGUAGES = {
     "한국어": "ko",
     "영어": "en",
     "일본어": "ja",
-    "중국어": "zh",
+    "중국어": "zh-CN",  # Chinese Simplified
     "스페인어": "es",
     "힌디어": "hi",
     "러시아어": "ru"
@@ -45,13 +45,13 @@ LANGUAGES = {
 
 # DeepL language codes (different from Google)
 DEEPL_LANGUAGES = {
-    "한국어": "ko",
-    "영어": "en-US",
-    "일본어": "ja",
-    "중국어": "zh",
-    "스페인어": "es",
-    "힌디어": "hi",
-    "러시아어": "ru"
+    "한국어": "KO",
+    "영어": "EN-US",
+    "일본어": "JA",
+    "중국어": "ZH",  # DeepL uses ZH for Chinese
+    "스페인어": "ES",
+    "힌디어": "HI",
+    "러시아어": "RU"
 }
 
 
@@ -76,36 +76,39 @@ class TranslationManager:
                 print("📝 Google Translate로 전환 (무료)")
                 self.use_deepl = False
 
-    def translate(self, text: str, target_lang: str, source_lang: str = "ko") -> str:
+    def translate(self, text: str, target_lang_name: str, source_lang: str = "ko") -> str:
         """
         Translate text to target language
 
         Args:
             text: Text to translate
-            target_lang: Target language code (e.g., 'en', 'ja')
+            target_lang_name: Target language name (e.g., '영어', '중국어')
             source_lang: Source language code (default: 'ko')
 
         Returns:
             Translated text
         """
+        # Get target language code
+        target_lang = LANGUAGES.get(target_lang_name, "en")
+
         # Skip if target is same as source
-        if target_lang == source_lang:
+        if target_lang == source_lang or target_lang_name == "한국어":
             return text
 
         try:
             if self.use_deepl:
-                return self._translate_deepl(text, target_lang, source_lang)
+                return self._translate_deepl(text, target_lang_name, source_lang)
             else:
                 return self._translate_google(text, target_lang, source_lang)
         except Exception as e:
-            print(f"⚠️  번역 실패 ({text}): {e}")
+            print(f"⚠️  번역 실패 ({text[:20]}... → {target_lang_name}): {e}")
             return text
 
-    def _translate_deepl(self, text: str, target_lang: str, source_lang: str) -> str:
+    def _translate_deepl(self, text: str, target_lang_name: str, source_lang: str) -> str:
         """Translate using DeepL API"""
         # Convert to DeepL language codes
-        target_deepl = DEEPL_LANGUAGES.get(target_lang, target_lang)
-        source_deepl = DEEPL_LANGUAGES.get(source_lang, source_lang)
+        target_deepl = DEEPL_LANGUAGES.get(target_lang_name, "EN-US")
+        source_deepl = source_lang.upper()
 
         result = self.deepl_translator.translate_text(
             text,
@@ -116,8 +119,13 @@ class TranslationManager:
 
     def _translate_google(self, text: str, target_lang: str, source_lang: str) -> str:
         """Translate using Google Translate (free)"""
-        translator = GoogleTranslator(source=source_lang, target=target_lang)
-        return translator.translate(text)
+        try:
+            translator = GoogleTranslator(source=source_lang, target=target_lang)
+            result = translator.translate(text)
+            return result if result else text
+        except Exception as e:
+            print(f"⚠️  Google 번역 오류: {e}")
+            return text
 
     def translate_to_all_languages(self, text: str, source_lang: str = "ko") -> Dict[str, str]:
         """
@@ -128,8 +136,12 @@ class TranslationManager:
         """
         translations = {}
 
-        for lang_name, lang_code in LANGUAGES.items():
-            translations[lang_name] = self.translate(text, lang_code, source_lang)
+        for lang_name in LANGUAGES.keys():
+            # 한국어는 원문 그대로
+            if lang_name == "한국어":
+                translations[lang_name] = text
+            else:
+                translations[lang_name] = self.translate(text, lang_name, source_lang)
 
         return translations
 
@@ -143,14 +155,14 @@ class TrendsExplorer:
 
     def _extract_keywords_from_titles(self, titles: List[str], num_keywords: int = 20) -> List[str]:
         """
-        Extract trending keywords from video titles using frequency analysis
+        Extract trending keywords (phrases) from video titles using n-gram analysis
 
         Args:
             titles: List of video titles
             num_keywords: Number of keywords to extract
 
         Returns:
-            List of extracted keywords
+            List of extracted keyword phrases (2-4 words)
         """
         # Korean stopwords (common words to filter out)
         stopwords = {
@@ -158,41 +170,82 @@ class TrendsExplorer:
             '그리고', '하지만', '그런데', '그래서', '때문에', '입니다', '합니다',
             '있는', '없는', '있다', '없다', '것을', '것이', '것은', '이것', '저것',
             '오늘', '어제', '내일', '지금', '이번', '다음', '최근', '새로운',
-            '유튜브', 'youtube', 'shorts', '쇼츠',
+            '유튜브', 'youtube', 'shorts', '쇼츠', '쇼트',
             '보기', '보는', '보다', '봐야', '보세요', '보여', '보여주', '보여줘',
             '이렇게', '저렇게', '어떻게', '왜', '무엇', '언제', '어디',
             '년', '월', '일', '시', '분', '초',
             'the', 'and', 'for', 'with', 'this', 'that', 'from', 'what', 'when',
-            'where', 'how', 'why', 'best', 'top', 'new', 'latest'
+            'where', 'how', 'why', 'best', 'top', 'new', 'latest', 'first'
         }
 
-        # Extract all words from titles (2+ characters)
-        word_counter = Counter()
+        # Extract n-grams (2-4 word phrases)
+        phrase_counter = Counter()
 
         for title in titles:
-            # Remove special characters and split
-            words = re.findall(r'[가-힣a-zA-Z0-9]+', title)
+            # Clean title
+            title = re.sub(r'[^\w\s가-힣]', ' ', title)
+            words = title.split()
 
-            for word in words:
-                # Filter: length >= 2, not a number, not stopword
-                word_lower = word.lower()
-                if (len(word) >= 2 and
-                    not word.isdigit() and
-                    word_lower not in stopwords and
-                    word not in stopwords):
-                    word_counter[word] += 1
+            # Filter stopwords
+            filtered_words = [
+                w for w in words
+                if len(w) >= 2 and
+                not w.isdigit() and
+                w.lower() not in stopwords and
+                w not in stopwords
+            ]
 
-        # Get most common keywords
-        common_keywords = word_counter.most_common(num_keywords * 3)  # Get more for filtering
+            # Extract 2-grams, 3-grams, 4-grams
+            for n in [2, 3, 4]:
+                for i in range(len(filtered_words) - n + 1):
+                    phrase = ' '.join(filtered_words[i:i+n])
+                    # Only count if phrase has meaningful content
+                    if len(phrase) >= 4:  # At least 4 characters
+                        phrase_counter[phrase] += 1
 
-        # Post-process: keep only keywords that appear in multiple videos
-        min_frequency = max(2, len(titles) // 50)  # At least 2% of videos
-        filtered_keywords = [
-            word for word, count in common_keywords
-            if count >= min_frequency
-        ][:num_keywords]
+        # Get most common phrases
+        common_phrases = phrase_counter.most_common(num_keywords * 5)
 
-        return filtered_keywords
+        # Post-process: keep only phrases that appear in multiple videos
+        min_frequency = max(2, len(titles) // 100)  # At least 1% of videos
+        filtered_phrases = []
+
+        for phrase, count in common_phrases:
+            if count >= min_frequency:
+                # Check if phrase is not a subset of an already selected phrase
+                is_subset = False
+                for existing in filtered_phrases:
+                    if phrase in existing or existing in phrase:
+                        is_subset = True
+                        break
+
+                if not is_subset:
+                    filtered_phrases.append(phrase)
+
+            if len(filtered_phrases) >= num_keywords:
+                break
+
+        # If we don't have enough phrases, add some single keywords
+        if len(filtered_phrases) < num_keywords // 2:
+            # Extract single keywords as backup
+            word_counter = Counter()
+            for title in titles:
+                words = re.findall(r'[가-힣a-zA-Z0-9]+', title)
+                for word in words:
+                    word_lower = word.lower()
+                    if (len(word) >= 2 and
+                        not word.isdigit() and
+                        word_lower not in stopwords and
+                        word not in stopwords):
+                        word_counter[word] += 1
+
+            for word, count in word_counter.most_common(num_keywords):
+                if count >= min_frequency and word not in ' '.join(filtered_phrases):
+                    filtered_phrases.append(word)
+                if len(filtered_phrases) >= num_keywords:
+                    break
+
+        return filtered_phrases[:num_keywords]
 
     def get_trending_keywords(
         self,
