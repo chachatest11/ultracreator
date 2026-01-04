@@ -155,111 +155,132 @@ class TrendsExplorer:
 
     def _extract_keywords_from_titles(self, titles: List[str], num_keywords: int = 20) -> List[str]:
         """
-        Extract trending keyword phrases from video titles using n-gram analysis
+        Extract trending keyword phrases from video titles
 
         Args:
             titles: List of video titles
             num_keywords: Number of keywords to extract
 
         Returns:
-            List of extracted keyword phrases (2-4 words)
+            List of extracted keyword phrases
         """
-        # Minimal stopwords - only remove very common filler words
-        stopwords = {
-            '영상', '동영상', '비디오', '클립', '쇼츠', '쇼트', 'shorts',
-            '유튜브', 'youtube', '채널', 'channel',
-            '입니다', '합니다', '있습니다', '없습니다',
-            'the', 'a', 'an', 'and', 'or', 'but'
-        }
-
-        # Extract phrases of 2-5 words
+        # Count phrase frequencies
         phrase_counter = Counter()
 
+        # Process each title
         for title in titles:
-            # Clean and normalize title - keep most punctuation context
-            # Remove brackets, parentheses, quotes but keep words
-            cleaned = re.sub(r'[\[\]()「」『』【】\(\)《》""\'\']+', ' ', title)
-            cleaned = re.sub(r'[|•★☆♡♥→←↑↓]+', ' ', cleaned)
+            # Minimal cleaning - only remove emojis and excessive symbols
+            cleaned = re.sub(r'[🎮🎯🔥💯👍❤️😊😂🤣😭🥰😍🤔💪🎉🎊✨⭐🌟💖💕💗💝💘💓💞💟☀️🌙⛅🌈🎵🎶🎤🎧🎬📺📷📸🎨🖼️]+', '', title)
+            cleaned = re.sub(r'[★☆♡♥→←↑↓■□●○◆◇▲△▼▽※]+', '', cleaned)
             cleaned = re.sub(r'\s+', ' ', cleaned).strip()
 
-            # Split into words but preserve structure
+            if len(cleaned) < 3:
+                continue
+
+            # Extract phrases of different lengths
+            # For Korean/Asian languages, use character-based approach
             words = cleaned.split()
 
-            # Create n-grams (2 to 5 words)
-            for n in range(2, 6):  # 2, 3, 4, 5 word phrases
-                for i in range(len(words) - n + 1):
-                    phrase_words = words[i:i+n]
+            # Try extracting 2-6 consecutive words as phrases
+            for phrase_len in range(2, 7):
+                for i in range(len(words) - phrase_len + 1):
+                    phrase = ' '.join(words[i:i + phrase_len])
 
-                    # Skip if contains too many stopwords
-                    stopword_count = sum(1 for w in phrase_words if w.lower() in stopwords or w in stopwords)
-                    if stopword_count > len(phrase_words) // 2:
+                    # Basic filtering
+                    if len(phrase) < 6:  # Too short
                         continue
 
-                    # Skip if too many numbers or too short
-                    phrase = ' '.join(phrase_words)
-                    if len(phrase) < 5:  # At least 5 characters
+                    # Skip if too many numbers
+                    digit_count = sum(c.isdigit() for c in phrase)
+                    if digit_count > len(phrase) * 0.4:
                         continue
 
-                    # Skip if mostly numbers
-                    if sum(c.isdigit() for c in phrase) > len(phrase) // 2:
-                        continue
+                    # Skip very common filler phrases
+                    if any(skip in phrase.lower() for skip in ['shorts', '쇼츠', 'youtube', '유튜브']):
+                        if len(phrase.split()) <= 2:  # Only skip if it's a short phrase
+                            continue
 
                     phrase_counter[phrase] += 1
 
         # Get most common phrases
-        common_phrases = phrase_counter.most_common(num_keywords * 10)
+        all_phrases = phrase_counter.most_common(num_keywords * 20)
 
-        # Filter by frequency - at least appear in 2 videos OR in top popular
-        min_frequency = max(2, len(titles) // 200)  # Very low threshold (0.5%)
+        # Filter and deduplicate
+        result = []
+        seen_parts = set()
 
-        result_phrases = []
-        seen_keywords = set()
-
-        for phrase, count in common_phrases:
-            if count < min_frequency:
+        # First pass: Get phrases with frequency >= 2
+        for phrase, count in all_phrases:
+            if count < 2:
                 continue
 
-            # Check if this phrase is too similar to existing ones
-            phrase_lower = phrase.lower()
-            is_duplicate = False
+            # Check if this phrase is too similar to already selected ones
+            phrase_lower = phrase.lower().strip()
 
-            for seen in seen_keywords:
-                # Skip if this phrase is a subset or superset of existing phrase
-                if phrase_lower in seen or seen in phrase_lower:
+            # Skip very short phrases if we have enough results
+            if len(result) > num_keywords // 2 and len(phrase) < 10:
+                continue
+
+            # Check for duplicates
+            is_duplicate = False
+            for seen in list(seen_parts):
+                # If this phrase completely contains or is contained by an existing one
+                if phrase_lower == seen or (phrase_lower in seen and len(phrase_lower) < len(seen) * 0.8):
                     is_duplicate = True
+                    break
+                # If existing phrase is contained in this one and much shorter
+                if seen in phrase_lower and len(seen) < len(phrase_lower) * 0.6:
+                    # Replace with longer phrase
+                    seen_parts.remove(seen)
+                    result = [r for r in result if r.lower() != seen]
                     break
 
             if not is_duplicate:
-                result_phrases.append(phrase)
-                seen_keywords.add(phrase_lower)
+                result.append(phrase)
+                seen_parts.add(phrase_lower)
 
-            if len(result_phrases) >= num_keywords:
+            if len(result) >= num_keywords:
                 break
 
-        # If we don't have enough phrases, relax the filters
-        if len(result_phrases) < num_keywords // 2:
-            print(f"⚠️  추출된 구문이 부족합니다 ({len(result_phrases)}개). 더 많은 구문 추출 중...")
-
-            # Add more phrases with lower frequency
-            for phrase, count in common_phrases:
-                if phrase in result_phrases:
+        # Second pass: If not enough, add phrases with frequency >= 1
+        if len(result) < num_keywords:
+            for phrase, count in all_phrases:
+                if phrase in result:
                     continue
 
-                phrase_lower = phrase.lower()
+                phrase_lower = phrase.lower().strip()
+
+                # Check for duplicates
                 is_duplicate = False
-                for seen in seen_keywords:
-                    if phrase_lower in seen or seen in phrase_lower:
+                for seen in seen_parts:
+                    if phrase_lower == seen or phrase_lower in seen or seen in phrase_lower:
                         is_duplicate = True
                         break
 
-                if not is_duplicate and count >= 1:  # Just need to appear once
-                    result_phrases.append(phrase)
-                    seen_keywords.add(phrase_lower)
+                if not is_duplicate and len(phrase) >= 6:
+                    result.append(phrase)
+                    seen_parts.add(phrase_lower)
 
-                if len(result_phrases) >= num_keywords:
+                if len(result) >= num_keywords:
                     break
 
-        return result_phrases[:num_keywords]
+        # If still not enough, extract from title beginnings/endings
+        if len(result) < num_keywords // 2:
+            print(f"⚠️  구문 추출 부족. 제목에서 직접 추출 중...")
+            for title in titles[:50]:  # Sample first 50 titles
+                cleaned = re.sub(r'[🎮🎯🔥💯👍❤️😊😂🤣😭🥰😍🤔💪🎉🎊✨⭐🌟💖💕💗💝💘💓💞💟☀️🌙⛅🌈]+', '', title)
+                cleaned = re.sub(r'\s+', ' ', cleaned).strip()
+
+                words = cleaned.split()
+                if len(words) >= 3:
+                    # First 3-4 words
+                    phrase = ' '.join(words[:min(4, len(words))])
+                    if len(phrase) >= 6 and phrase not in result:
+                        result.append(phrase)
+                        if len(result) >= num_keywords:
+                            break
+
+        return result[:num_keywords]
 
     def get_trending_keywords(
         self,
