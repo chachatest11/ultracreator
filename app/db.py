@@ -70,6 +70,7 @@ def init_db():
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 channel_id TEXT NOT NULL,
                 video_id TEXT NOT NULL UNIQUE,
+                url TEXT,
                 title TEXT,
                 published_at DATETIME,
                 view_count INTEGER,
@@ -83,7 +84,7 @@ def init_db():
             )
         """)
 
-        # like_count, comment_count 컬럼 추가 (기존 DB 마이그레이션)
+        # like_count, comment_count, url 컬럼 추가 (기존 DB 마이그레이션)
         try:
             cursor.execute("ALTER TABLE videos ADD COLUMN like_count INTEGER DEFAULT 0")
         except sqlite3.OperationalError:
@@ -91,6 +92,11 @@ def init_db():
 
         try:
             cursor.execute("ALTER TABLE videos ADD COLUMN comment_count INTEGER DEFAULT 0")
+        except sqlite3.OperationalError:
+            pass  # 컬럼이 이미 존재함
+
+        try:
+            cursor.execute("ALTER TABLE videos ADD COLUMN url TEXT")
         except sqlite3.OperationalError:
             pass  # 컬럼이 이미 존재함
 

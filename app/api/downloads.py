@@ -18,6 +18,10 @@ class DownloadStartRequest(BaseModel):
     video_ids: List[str]
 
 
+class QuickDownloadRequest(BaseModel):
+    urls: List[str]
+
+
 @router.post("/start")
 def start_downloads(data: DownloadStartRequest):
     """
@@ -38,13 +42,12 @@ def start_downloads(data: DownloadStartRequest):
     results = []
 
     for video_id in data.video_ids:
-        # 영상 정보 조회 (채널명 가져오기)
+        # 영상 정보 조회 (URL 및 제목 가져오기)
         with get_db() as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                SELECT v.video_id, v.title, c.title as channel_title
+                SELECT v.video_id, v.title, v.url
                 FROM videos v
-                LEFT JOIN channels c ON v.channel_id = c.channel_id
                 WHERE v.video_id = ?
             """, (video_id,))
             video_row = cursor.fetchone()
@@ -59,7 +62,16 @@ def start_downloads(data: DownloadStartRequest):
 
         video_id_db = video_row[0]
         video_title = video_row[1]
-        channel_title = video_row[2]
+        video_url = video_row[2]
+
+        if not video_url:
+            results.append({
+                "video_id": video_id,
+                "video_title": video_title,
+                "status": "failed",
+                "error": "동영상 URL이 없습니다"
+            })
+            continue
 
         # downloads 테이블에 기록
         with get_db() as conn:
@@ -74,8 +86,8 @@ def start_downloads(data: DownloadStartRequest):
             download_id = cursor.lastrowid
             conn.commit()
 
-        # 실제 다운로드 수행
-        result = downloader.download_video(video_id, channel_title)
+        # 실제 다운로드 수행 (URL 사용, 커스텀 파일명)
+        result = downloader.download_video(video_url, custom_name=video_title)
 
         # 결과 업데이트
         with get_db() as conn:
@@ -196,3 +208,64 @@ def get_download_history(limit: int = 100):
         downloads = [Download.from_row(row).to_dict() for row in rows]
 
         return {"downloads": downloads, "total": len(downloads)}
+
+
+@router.post("/quick")
+def quick_download(data: QuickDownloadRequest):
+    """
+    URL 입력하면 즉시 다운로드
+
+    Returns:
+        각 URL의 다운로드 결과
+    """
+    if not data.urls:
+        raise HTTPException(status_code=400, detail="URL이 필요합니다")
+
+    # yt-dlp 설치 확인
+    if not downloader.check_yt_dlp_installed():
+        raise HTTPException(
+            status_code=500,
+            detail="yt-dlp가 설치되어 있지 않습니다. 'pip install yt-dlp' 명령어로 설치해주세요."
+        )
+
+    results = []
+
+    for url in data.urls:
+        url = url.strip()
+        if not url:
+            continue
+
+        try:
+            # 다운로드 수행
+            result = downloader.download_video(url)
+
+            if result["success"]:
+                results.append({
+                    "url": url,
+                    "status": "success",
+                    "file_path": result["file_path"],
+                    "message": "다운로드 완료"
+                })
+            else:
+                results.append({
+                    "url": url,
+                    "status": "failed",
+                    "error": result["error_message"]
+                })
+
+        except Exception as e:
+            results.append({
+                "url": url,
+                "status": "failed",
+                "error": str(e)
+            })
+
+    success_count = len([r for r in results if r["status"] == "success"])
+    failed_count = len([r for r in results if r["status"] == "failed"])
+
+    return {
+        "total": len(results),
+        "success": success_count,
+        "failed": failed_count,
+        "results": results
+    }

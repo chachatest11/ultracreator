@@ -1,12 +1,15 @@
 import os
 import subprocess
+import json
+import hashlib
 from typing import Optional, Dict
 from datetime import datetime
 from pathlib import Path
+from urllib.parse import urlparse
 
 
 class VideoDownloader:
-    """yt-dlp를 사용한 비디오 다운로더"""
+    """yt-dlp를 사용한 Xiaohongshu 비디오 다운로더"""
 
     def __init__(self, download_dir: str = "downloads"):
         self.download_dir = download_dir
@@ -19,13 +22,31 @@ class VideoDownloader:
             filename = filename.replace(char, "_")
         return filename
 
+    def _extract_video_id(self, url: str) -> str:
+        """URL에서 비디오 ID 추출 (해시 사용)"""
+        # Xiaohongshu URL에서 ID 추출 시도
+        # 예: https://www.xiaohongshu.com/explore/xxxxx
+        # 또는 https://xhslink.com/xxxxx
+        parsed = urlparse(url)
+        path_parts = parsed.path.strip('/').split('/')
+
+        if len(path_parts) > 0 and path_parts[-1]:
+            return path_parts[-1]
+
+        # 추출 실패 시 URL 해시 사용
+        return hashlib.md5(url.encode()).hexdigest()[:12]
+
     def download_video(
         self,
-        video_id: str,
-        channel_title: Optional[str] = None
+        url: str,
+        custom_name: Optional[str] = None
     ) -> Dict:
         """
         단일 비디오 다운로드
+
+        Args:
+            url: Xiaohongshu 동영상 URL
+            custom_name: 커스텀 파일명 (선택)
 
         Returns:
             {
@@ -35,32 +56,29 @@ class VideoDownloader:
             }
         """
         try:
-            # 채널명 폴더 생성
-            if channel_title:
-                safe_channel = self._sanitize_filename(channel_title)
-                output_dir = os.path.join(self.download_dir, safe_channel)
+            video_id = self._extract_video_id(url)
+
+            # 출력 파일명 결정
+            if custom_name:
+                safe_name = self._sanitize_filename(custom_name)
+                filename = f"{safe_name}.mp4"
             else:
-                output_dir = self.download_dir
+                filename = f"{video_id}.mp4"
 
-            Path(output_dir).mkdir(parents=True, exist_ok=True)
-
-            # 출력 파일 경로
-            output_template = os.path.join(output_dir, f"{video_id}.mp4")
+            output_path = os.path.join(self.download_dir, filename)
 
             # yt-dlp 명령어
             command = [
                 "yt-dlp",
                 # 비디오+오디오 병합, 최대 가능한 해상도
-                "-f", "bv*+ba/b",
+                "-f", "best",
                 # 병합 출력 형식을 MP4로 지정
                 "--merge-output-format", "mp4",
-                # YouTube 제한 우회 (Android 클라이언트 사용)
-                "--extractor-args", "youtube:player_client=android",
-                # 모바일 User-Agent 사용
-                "--user-agent", "com.google.android.youtube/17.36.4 (Linux; U; Android 12; GB) gzip",
                 # 출력 파일 경로
-                "-o", output_template,
-                f"https://www.youtube.com/watch?v={video_id}"
+                "-o", output_path,
+                # User-Agent 설정
+                "--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                url
             ]
 
             # 실행
@@ -74,7 +92,7 @@ class VideoDownloader:
             if result.returncode == 0:
                 return {
                     "success": True,
-                    "file_path": output_template,
+                    "file_path": output_path,
                     "error_message": None
                 }
             else:
@@ -109,26 +127,28 @@ class VideoDownloader:
         except Exception:
             return False
 
-    def get_video_info(self, video_id: str) -> Optional[Dict]:
+    def get_video_info(self, url: str) -> Optional[Dict]:
         """비디오 정보 가져오기 (yt-dlp 사용)"""
         try:
             command = [
                 "yt-dlp",
                 "--dump-json",
-                f"https://www.youtube.com/watch?v={video_id}"
+                "--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                "--no-warnings",
+                url
             ]
 
             result = subprocess.run(
                 command,
                 capture_output=True,
                 text=True,
-                timeout=30
+                timeout=60
             )
 
             if result.returncode == 0:
-                import json
                 return json.loads(result.stdout)
             return None
 
-        except Exception:
+        except Exception as e:
+            print(f"Error getting video info: {e}")
             return None

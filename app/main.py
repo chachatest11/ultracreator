@@ -13,7 +13,7 @@ from .api import (
 )
 
 # FastAPI 앱 생성
-app = FastAPI(title="YouTube Shorts Downloader")
+app = FastAPI(title="Xiaohongshu Video Downloader")
 
 # 정적 파일 및 템플릿 설정
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
@@ -38,41 +38,9 @@ def startup_event():
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
     """메인 페이지"""
-    # 카테고리 목록 조회 (채널 개수 포함)
-    with get_db() as conn:
-        cursor = conn.cursor()
-
-        # 전체 채널 개수
-        cursor.execute("SELECT COUNT(*) FROM channels")
-        total_count = cursor.fetchone()[0]
-
-        # 각 카테고리별 채널 개수 포함 (display_order로 정렬)
-        cursor.execute("""
-            SELECT c.id, c.name, c.created_at, c.display_order, COUNT(ch.id) as channel_count
-            FROM categories c
-            LEFT JOIN channels ch ON c.id = ch.category_id
-            GROUP BY c.id, c.name, c.created_at, c.display_order
-            ORDER BY c.display_order ASC, c.id ASC
-        """)
-        category_rows = cursor.fetchall()
-        categories = [
-            {
-                "id": row[0],
-                "name": row[1],
-                "created_at": row[2],
-                "display_order": row[3],
-                "channel_count": row[4]
-            }
-            for row in category_rows
-        ]
-
     return templates.TemplateResponse(
         "index.html",
-        {
-            "request": request,
-            "categories": categories,
-            "total_count": total_count
-        }
+        {"request": request}
     )
 
 
