@@ -155,7 +155,7 @@ class TrendsExplorer:
 
     def _extract_keywords_from_titles(self, titles: List[str], num_keywords: int = 20) -> List[str]:
         """
-        Extract trending keywords (phrases) from video titles using n-gram analysis
+        Extract trending keyword phrases from video titles using n-gram analysis
 
         Args:
             titles: List of video titles
@@ -164,88 +164,102 @@ class TrendsExplorer:
         Returns:
             List of extracted keyword phrases (2-4 words)
         """
-        # Korean stopwords (common words to filter out)
+        # Minimal stopwords - only remove very common filler words
         stopwords = {
-            '영상', '동영상', '비디오', '클립', '모음', '모음집', '총집편',
-            '그리고', '하지만', '그런데', '그래서', '때문에', '입니다', '합니다',
-            '있는', '없는', '있다', '없다', '것을', '것이', '것은', '이것', '저것',
-            '오늘', '어제', '내일', '지금', '이번', '다음', '최근', '새로운',
-            '유튜브', 'youtube', 'shorts', '쇼츠', '쇼트',
-            '보기', '보는', '보다', '봐야', '보세요', '보여', '보여주', '보여줘',
-            '이렇게', '저렇게', '어떻게', '왜', '무엇', '언제', '어디',
-            '년', '월', '일', '시', '분', '초',
-            'the', 'and', 'for', 'with', 'this', 'that', 'from', 'what', 'when',
-            'where', 'how', 'why', 'best', 'top', 'new', 'latest', 'first'
+            '영상', '동영상', '비디오', '클립', '쇼츠', '쇼트', 'shorts',
+            '유튜브', 'youtube', '채널', 'channel',
+            '입니다', '합니다', '있습니다', '없습니다',
+            'the', 'a', 'an', 'and', 'or', 'but'
         }
 
-        # Extract n-grams (2-4 word phrases)
+        # Extract phrases of 2-5 words
         phrase_counter = Counter()
 
         for title in titles:
-            # Clean title
-            title = re.sub(r'[^\w\s가-힣]', ' ', title)
-            words = title.split()
+            # Clean and normalize title - keep most punctuation context
+            # Remove brackets, parentheses, quotes but keep words
+            cleaned = re.sub(r'[\[\]()「」『』【】\(\)《》""\'\']+', ' ', title)
+            cleaned = re.sub(r'[|•★☆♡♥→←↑↓]+', ' ', cleaned)
+            cleaned = re.sub(r'\s+', ' ', cleaned).strip()
 
-            # Filter stopwords
-            filtered_words = [
-                w for w in words
-                if len(w) >= 2 and
-                not w.isdigit() and
-                w.lower() not in stopwords and
-                w not in stopwords
-            ]
+            # Split into words but preserve structure
+            words = cleaned.split()
 
-            # Extract 2-grams, 3-grams, 4-grams
-            for n in [2, 3, 4]:
-                for i in range(len(filtered_words) - n + 1):
-                    phrase = ' '.join(filtered_words[i:i+n])
-                    # Only count if phrase has meaningful content
-                    if len(phrase) >= 4:  # At least 4 characters
-                        phrase_counter[phrase] += 1
+            # Create n-grams (2 to 5 words)
+            for n in range(2, 6):  # 2, 3, 4, 5 word phrases
+                for i in range(len(words) - n + 1):
+                    phrase_words = words[i:i+n]
+
+                    # Skip if contains too many stopwords
+                    stopword_count = sum(1 for w in phrase_words if w.lower() in stopwords or w in stopwords)
+                    if stopword_count > len(phrase_words) // 2:
+                        continue
+
+                    # Skip if too many numbers or too short
+                    phrase = ' '.join(phrase_words)
+                    if len(phrase) < 5:  # At least 5 characters
+                        continue
+
+                    # Skip if mostly numbers
+                    if sum(c.isdigit() for c in phrase) > len(phrase) // 2:
+                        continue
+
+                    phrase_counter[phrase] += 1
 
         # Get most common phrases
-        common_phrases = phrase_counter.most_common(num_keywords * 5)
+        common_phrases = phrase_counter.most_common(num_keywords * 10)
 
-        # Post-process: keep only phrases that appear in multiple videos
-        min_frequency = max(2, len(titles) // 100)  # At least 1% of videos
-        filtered_phrases = []
+        # Filter by frequency - at least appear in 2 videos OR in top popular
+        min_frequency = max(2, len(titles) // 200)  # Very low threshold (0.5%)
+
+        result_phrases = []
+        seen_keywords = set()
 
         for phrase, count in common_phrases:
-            if count >= min_frequency:
-                # Check if phrase is not a subset of an already selected phrase
-                is_subset = False
-                for existing in filtered_phrases:
-                    if phrase in existing or existing in phrase:
-                        is_subset = True
-                        break
+            if count < min_frequency:
+                continue
 
-                if not is_subset:
-                    filtered_phrases.append(phrase)
+            # Check if this phrase is too similar to existing ones
+            phrase_lower = phrase.lower()
+            is_duplicate = False
 
-            if len(filtered_phrases) >= num_keywords:
-                break
-
-        # If we don't have enough phrases, add some single keywords
-        if len(filtered_phrases) < num_keywords // 2:
-            # Extract single keywords as backup
-            word_counter = Counter()
-            for title in titles:
-                words = re.findall(r'[가-힣a-zA-Z0-9]+', title)
-                for word in words:
-                    word_lower = word.lower()
-                    if (len(word) >= 2 and
-                        not word.isdigit() and
-                        word_lower not in stopwords and
-                        word not in stopwords):
-                        word_counter[word] += 1
-
-            for word, count in word_counter.most_common(num_keywords):
-                if count >= min_frequency and word not in ' '.join(filtered_phrases):
-                    filtered_phrases.append(word)
-                if len(filtered_phrases) >= num_keywords:
+            for seen in seen_keywords:
+                # Skip if this phrase is a subset or superset of existing phrase
+                if phrase_lower in seen or seen in phrase_lower:
+                    is_duplicate = True
                     break
 
-        return filtered_phrases[:num_keywords]
+            if not is_duplicate:
+                result_phrases.append(phrase)
+                seen_keywords.add(phrase_lower)
+
+            if len(result_phrases) >= num_keywords:
+                break
+
+        # If we don't have enough phrases, relax the filters
+        if len(result_phrases) < num_keywords // 2:
+            print(f"⚠️  추출된 구문이 부족합니다 ({len(result_phrases)}개). 더 많은 구문 추출 중...")
+
+            # Add more phrases with lower frequency
+            for phrase, count in common_phrases:
+                if phrase in result_phrases:
+                    continue
+
+                phrase_lower = phrase.lower()
+                is_duplicate = False
+                for seen in seen_keywords:
+                    if phrase_lower in seen or seen in phrase_lower:
+                        is_duplicate = True
+                        break
+
+                if not is_duplicate and count >= 1:  # Just need to appear once
+                    result_phrases.append(phrase)
+                    seen_keywords.add(phrase_lower)
+
+                if len(result_phrases) >= num_keywords:
+                    break
+
+        return result_phrases[:num_keywords]
 
     def get_trending_keywords(
         self,
