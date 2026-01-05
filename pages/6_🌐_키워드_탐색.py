@@ -129,6 +129,37 @@ with st.expander("⚙️ 고급 설정"):
             help="같은 카테고리에 대해 24시간 이내 결과를 재사용합니다."
         )
 
+    # Cache management
+    st.markdown("---")
+    st.markdown("#### 🗑️ 캐시 관리")
+
+    col_cache1, col_cache2 = st.columns([3, 1])
+
+    with col_cache1:
+        st.caption("캐시된 키워드를 모두 삭제하고 새로 생성하려면 버튼을 클릭하세요.")
+
+    with col_cache2:
+        if st.button("🗑️ 캐시 삭제", type="secondary", use_container_width=True):
+            try:
+                # Delete all cached keywords
+                db.init_db()  # Ensure table exists
+                with db.get_db() as conn:
+                    cursor = conn.cursor()
+                    cursor.execute("DELETE FROM trending_keywords")
+                    deleted_count = cursor.rowcount
+                    conn.commit()
+
+                # Clear session state
+                if 'keyword_results' in st.session_state:
+                    del st.session_state.keyword_results
+                if 'search_label' in st.session_state:
+                    del st.session_state.search_label
+
+                st.success(f"✅ 캐시 삭제 완료! ({deleted_count}개 항목 삭제)")
+                st.rerun()
+            except Exception as e:
+                st.error(f"❌ 캐시 삭제 실패: {e}")
+
 st.markdown("---")
 
 # Search logic
