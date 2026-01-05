@@ -106,26 +106,87 @@ class TranslationManager:
 
     def _translate_deepl(self, text: str, target_lang_name: str, source_lang: str) -> str:
         """Translate using DeepL API"""
-        # Convert to DeepL language codes
-        target_deepl = DEEPL_LANGUAGES.get(target_lang_name, "EN-US")
-        source_deepl = source_lang.upper()
+        # Clean text before translation
+        cleaned_text = self._clean_for_translation(text)
 
-        result = self.deepl_translator.translate_text(
-            text,
-            source_lang=source_deepl,
-            target_lang=target_deepl
-        )
-        return result.text
+        # If cleaned text is too short, return original
+        if len(cleaned_text) < 2:
+            return text
+
+        try:
+            # Convert to DeepL language codes
+            target_deepl = DEEPL_LANGUAGES.get(target_lang_name, "EN-US")
+            source_deepl = source_lang.upper()
+
+            result = self.deepl_translator.translate_text(
+                cleaned_text,
+                source_lang=source_deepl,
+                target_lang=target_deepl
+            )
+            return result.text if result.text else text
+        except Exception as e:
+            print(f"⚠️  DeepL 번역 오류 ({text[:30]}...): {str(e)[:50]}")
+            return text
+
+    def _clean_for_translation(self, text: str) -> str:
+        """Clean text for translation by removing emojis and special characters"""
+        import re
+
+        # Remove all emojis and special symbols
+        cleaned = re.sub(r'[🎮🎯🔥💯👍❤️😊😂🤣😭🥰😍🤔💪🎉🎊✨⭐🌟💖💕💗💝💘💓💞💟☀️🌙⛅🌈🎵🎶🎤🎧🎬📺📷📸🎨🖼️⚡💥🏆🥇🥈🥉🎁🎀]+', '', text)
+        cleaned = re.sub(r'[★☆♡♥→←↑↓■□●○◆◇▲△▼▽※]+', '', cleaned)
+
+        # Remove brackets and parentheses with content
+        cleaned = re.sub(r'\[.*?\]', '', cleaned)
+        cleaned = re.sub(r'\(.*?\)', '', cleaned)
+
+        # Remove multiple spaces
+        cleaned = re.sub(r'\s+', ' ', cleaned).strip()
+
+        # Remove quotes
+        cleaned = cleaned.replace('"', '').replace("'", '')
+
+        return cleaned
 
     def _translate_google(self, text: str, target_lang: str, source_lang: str) -> str:
-        """Translate using Google Translate (free)"""
-        try:
-            translator = GoogleTranslator(source=source_lang, target=target_lang)
-            result = translator.translate(text)
-            return result if result else text
-        except Exception as e:
-            print(f"⚠️  Google 번역 오류: {e}")
+        """Translate using Google Translate (free) with retry logic"""
+        import time
+
+        # Clean text before translation
+        cleaned_text = self._clean_for_translation(text)
+
+        # If cleaned text is too short, return original
+        if len(cleaned_text) < 2:
             return text
+
+        # Try translation with retry logic (max 3 attempts)
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                translator = GoogleTranslator(source=source_lang, target=target_lang)
+                result = translator.translate(cleaned_text)
+
+                if result and len(result) > 0:
+                    return result
+                else:
+                    # If no result, wait and retry
+                    if attempt < max_retries - 1:
+                        time.sleep(0.5 * (attempt + 1))  # Exponential backoff
+                        continue
+                    else:
+                        return text
+
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    # Retry with delay
+                    time.sleep(0.5 * (attempt + 1))
+                    continue
+                else:
+                    # Final attempt failed, return original
+                    print(f"⚠️  Google 번역 오류 ({text[:30]}...): {str(e)[:50]}")
+                    return text
+
+        return text
 
     def translate_to_all_languages(self, text: str, source_lang: str = "ko") -> Dict[str, str]:
         """
@@ -134,6 +195,8 @@ class TranslationManager:
         Returns:
             Dictionary mapping language names to translated text
         """
+        import time
+
         translations = {}
 
         for lang_name in LANGUAGES.keys():
@@ -142,6 +205,9 @@ class TranslationManager:
                 translations[lang_name] = text
             else:
                 translations[lang_name] = self.translate(text, lang_name, source_lang)
+                # Small delay to avoid rate limiting (only for Google Translate)
+                if not self.use_deepl:
+                    time.sleep(0.1)
 
         return translations
 
