@@ -6,6 +6,7 @@ import pandas as pd
 from datetime import datetime
 import sys
 import os
+import urllib.parse
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -223,9 +224,102 @@ if search_button or 'keyword_results' in st.session_state:
         st.markdown("---")
 
         # Display keywords table
-        st.markdown("#### 📋 키워드 목록")
+        st.markdown("#### 📋 키워드 목록 (클릭하면 YouTube에서 검색됩니다)")
 
-        # Prepare table data
+        # Prepare table data with YouTube search links
+        def create_youtube_link(keyword):
+            """Create YouTube search link for keyword"""
+            encoded = urllib.parse.quote(keyword)
+            return f'<a href="https://www.youtube.com/results?search_query={encoded}" target="_blank">{keyword}</a>'
+
+        # Build HTML table
+        html_table = """
+        <style>
+        .keyword-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+        .keyword-table th {
+            background-color: #f0f2f6;
+            padding: 12px 8px;
+            text-align: left;
+            border-bottom: 2px solid #ddd;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        .keyword-table td {
+            padding: 10px 8px;
+            border-bottom: 1px solid #eee;
+        }
+        .keyword-table tr:hover {
+            background-color: #f9f9f9;
+        }
+        .keyword-table a {
+            color: #0066cc;
+            text-decoration: none;
+        }
+        .keyword-table a:hover {
+            text-decoration: underline;
+            color: #0052a3;
+        }
+        .rank-col {
+            width: 50px;
+            text-align: center;
+            font-weight: bold;
+            color: #666;
+        }
+        .table-container {
+            max-height: 600px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        </style>
+        <div class="table-container">
+        <table class="keyword-table">
+        <thead>
+            <tr>
+                <th class="rank-col">순위</th>
+                <th>🇰🇷 한국어</th>
+                <th>🇺🇸 영어</th>
+                <th>🇯🇵 일본어</th>
+                <th>🇨🇳 중국어</th>
+                <th>🇪🇸 스페인어</th>
+                <th>🇮🇳 힌디어</th>
+                <th>🇷🇺 러시아어</th>
+            </tr>
+        </thead>
+        <tbody>
+        """
+
+        for idx, item in enumerate(results, start=1):
+            keyword = item['keyword']
+            translations = item['translations']
+
+            html_table += f"""
+            <tr>
+                <td class="rank-col">{idx}</td>
+                <td>{create_youtube_link(translations.get("한국어", keyword))}</td>
+                <td>{create_youtube_link(translations.get("영어", ""))}</td>
+                <td>{create_youtube_link(translations.get("일본어", ""))}</td>
+                <td>{create_youtube_link(translations.get("중국어", ""))}</td>
+                <td>{create_youtube_link(translations.get("스페인어", ""))}</td>
+                <td>{create_youtube_link(translations.get("힌디어", ""))}</td>
+                <td>{create_youtube_link(translations.get("러시아어", ""))}</td>
+            </tr>
+            """
+
+        html_table += """
+        </tbody>
+        </table>
+        </div>
+        """
+
+        st.markdown(html_table, unsafe_allow_html=True)
+
+        # Also prepare CSV data for download (without links)
         table_data = []
         for idx, item in enumerate(results, start=1):
             keyword = item['keyword']
@@ -244,14 +338,6 @@ if search_button or 'keyword_results' in st.session_state:
             table_data.append(row)
 
         df = pd.DataFrame(table_data)
-
-        # Display table
-        st.dataframe(
-            df,
-            use_container_width=True,
-            hide_index=True,
-            height=600
-        )
 
         # Download button
         st.markdown("#### 💾 다운로드")
