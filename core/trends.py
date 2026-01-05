@@ -156,184 +156,115 @@ class TrendsExplorer:
     def _extract_keywords_from_titles(self, titles: List[str], num_keywords: int = 20) -> List[str]:
         """
         Extract trending keyword phrases from video titles
-        Prioritizes longer, more meaningful phrases
+        Uses actual video titles as keywords for maximum relevance
 
         Args:
             titles: List of video titles
             num_keywords: Number of keywords to extract
 
         Returns:
-            List of extracted keyword phrases (3-5 words preferred)
+            List of extracted keyword phrases (actual video titles or title segments)
         """
-        # Count phrase frequencies with length preference
-        phrase_counter = Counter()
+        keywords = []
+        seen = set()
 
-        # Process each title
+        # STRATEGY 1: Use short, meaningful titles directly (10-50 characters)
         for title in titles:
-            # Minimal cleaning - only remove emojis and excessive symbols
+            # Clean title
             cleaned = re.sub(r'[🎮🎯🔥💯👍❤️😊😂🤣😭🥰😍🤔💪🎉🎊✨⭐🌟💖💕💗💝💘💓💞💟☀️🌙⛅🌈🎵🎶🎤🎧🎬📺📷📸🎨🖼️]+', '', title)
             cleaned = re.sub(r'[★☆♡♥→←↑↓■□●○◆◇▲△▼▽※\[\]\(\)]+', '', cleaned)
             cleaned = re.sub(r'\s+', ' ', cleaned).strip()
 
-            if len(cleaned) < 5:
-                continue
+            # Use titles that are 10-50 characters long (good keyword length)
+            if 10 <= len(cleaned) <= 50:
+                cleaned_lower = cleaned.lower()
+                # Skip if too similar to existing
+                if not any(cleaned_lower in s or s in cleaned_lower for s in seen):
+                    keywords.append(cleaned)
+                    seen.add(cleaned_lower)
+                    if len(keywords) >= num_keywords:
+                        return keywords
+
+        # STRATEGY 2: Extract first N words from longer titles
+        for title in titles:
+            cleaned = re.sub(r'[🎮🎯🔥💯👍❤️😊😂🤣😭🥰😍🤔💪🎉🎊✨⭐🌟💖💕💗💝💘💓💞💟☀️🌙⛅🌈\[\]\(\)]+', '', title)
+            cleaned = re.sub(r'\s+', ' ', cleaned).strip()
 
             words = cleaned.split()
 
-            # Extract phrases - PRIORITIZE LONGER PHRASES (3-6 words)
-            # Try 6-word phrases first, then 5, 4, 3, and finally 2
-            for phrase_len in [6, 5, 4, 3, 2]:
+            # Try 5-word, 4-word, 3-word phrases from beginning of title
+            for n in [5, 4, 3]:
+                if len(words) >= n:
+                    phrase = ' '.join(words[:n])
+                    phrase_lower = phrase.lower()
+
+                    # Check length and uniqueness
+                    if 10 <= len(phrase) <= 50:
+                        if not any(phrase_lower in s or s in phrase_lower for s in seen):
+                            keywords.append(phrase)
+                            seen.add(phrase_lower)
+                            if len(keywords) >= num_keywords:
+                                return keywords
+                            break  # Got one phrase from this title, move to next
+
+        # STRATEGY 3: Frequency-based extraction with very low threshold
+        phrase_counter = Counter()
+
+        for title in titles:
+            cleaned = re.sub(r'[🎮🎯🔥💯👍❤️😊😂🤣😭🥰😍🤔💪🎉🎊✨⭐🌟💖💕💗💝💘💓💞💟☀️🌙⛅🌈\[\]\(\)]+', '', title)
+            cleaned = re.sub(r'\s+', ' ', cleaned).strip()
+            words = cleaned.split()
+
+            # Extract 3-6 word phrases
+            for phrase_len in [6, 5, 4, 3]:
                 for i in range(len(words) - phrase_len + 1):
                     phrase = ' '.join(words[i:i + phrase_len])
 
-                    # Length filtering based on phrase word count
-                    if phrase_len >= 4:
-                        min_len = 12  # Longer phrases need more characters
-                    elif phrase_len == 3:
-                        min_len = 8   # 3-word phrases need at least 8 chars
-                    else:
-                        min_len = 6   # 2-word phrases need at least 6 chars
+                    if 10 <= len(phrase) <= 60:
+                        # Skip if mostly numbers
+                        if sum(c.isdigit() for c in phrase) < len(phrase) * 0.3:
+                            phrase_counter[phrase] += 1
 
-                    if len(phrase) < min_len:
-                        continue
+        # Add high-frequency phrases
+        for phrase, count in phrase_counter.most_common(num_keywords * 3):
+            phrase_lower = phrase.lower()
+            if not any(phrase_lower in s or s in phrase_lower for s in seen):
+                keywords.append(phrase)
+                seen.add(phrase_lower)
+                if len(keywords) >= num_keywords:
+                    return keywords
 
-                    # Skip if too many numbers
-                    digit_count = sum(c.isdigit() for c in phrase)
-                    if digit_count > len(phrase) * 0.3:
-                        continue
+        # STRATEGY 4: Fallback - just take title segments
+        for title in titles:
+            cleaned = re.sub(r'[🎮🎯🔥💯👍❤️😊😂🤣😭🥰😍🤔💪🎉🎊✨⭐🌟💖💕💗💝💘💓💞💟☀️🌙⛅🌈\[\]\(\)]+', '', title)
+            cleaned = re.sub(r'\s+', ' ', cleaned).strip()
 
-                    # Skip filler-only phrases
-                    if any(skip in phrase.lower() for skip in ['shorts', '쇼츠', 'youtube', '유튜브', '영상', '비디오']):
-                        if len(phrase.split()) <= 2:
-                            continue
+            if 8 <= len(cleaned) <= 60:
+                # Split long titles in half
+                if len(cleaned) > 30:
+                    words = cleaned.split()
+                    mid = len(words) // 2
+                    phrase = ' '.join(words[:mid])
+                    if len(phrase) >= 10:
+                        phrase_lower = phrase.lower()
+                        if not any(phrase_lower in s or s in phrase_lower for s in seen):
+                            keywords.append(phrase)
+                            seen.add(phrase_lower)
+                else:
+                    # Use whole title
+                    cleaned_lower = cleaned.lower()
+                    if not any(cleaned_lower in s or s in cleaned_lower for s in seen):
+                        keywords.append(cleaned)
+                        seen.add(cleaned_lower)
 
-                    # Weight by phrase length - longer phrases get bonus
-                    weight = 1
-                    if phrase_len >= 4:
-                        weight = 3  # 4+ words get 3x weight
-                    elif phrase_len == 3:
-                        weight = 2  # 3 words get 2x weight
+                if len(keywords) >= num_keywords:
+                    return keywords
 
-                    phrase_counter[phrase] += weight
+        # Calculate average word count
+        avg_words = sum(len(k.split()) for k in keywords) / len(keywords) if keywords else 0
+        print(f"✅ 추출된 구문: {len(keywords)}개 (평균 단어 수: {avg_words:.1f}개)")
 
-        # Get most common phrases
-        all_phrases = phrase_counter.most_common(num_keywords * 30)
-
-        # Filter and deduplicate - PREFER LONGER PHRASES
-        result = []
-        seen_parts = set()
-
-        # FIRST PASS: Get 4-6 word phrases (high priority)
-        for phrase, count in all_phrases:
-            word_count = len(phrase.split())
-            if word_count < 4:
-                continue  # Skip for now
-
-            if count < 2:  # Need at least 2 occurrences
-                continue
-
-            phrase_lower = phrase.lower().strip()
-
-            # Check for duplicates
-            is_duplicate = False
-            for seen in list(seen_parts):
-                if phrase_lower == seen:
-                    is_duplicate = True
-                    break
-                # If this phrase contains a shorter existing phrase, keep the longer one
-                if seen in phrase_lower and len(seen) < len(phrase_lower) * 0.7:
-                    seen_parts.remove(seen)
-                    result = [r for r in result if r.lower() != seen]
-                    break
-                # If existing phrase contains this one, skip this
-                if phrase_lower in seen:
-                    is_duplicate = True
-                    break
-
-            if not is_duplicate:
-                result.append(phrase)
-                seen_parts.add(phrase_lower)
-
-            if len(result) >= num_keywords:
-                break
-
-        # SECOND PASS: Get 3-word phrases if needed
-        if len(result) < num_keywords:
-            for phrase, count in all_phrases:
-                if phrase in result:
-                    continue
-
-                word_count = len(phrase.split())
-                if word_count != 3:
-                    continue
-
-                if count < 2:
-                    continue
-
-                phrase_lower = phrase.lower().strip()
-
-                is_duplicate = False
-                for seen in seen_parts:
-                    if phrase_lower == seen or phrase_lower in seen or seen in phrase_lower:
-                        is_duplicate = True
-                        break
-
-                if not is_duplicate:
-                    result.append(phrase)
-                    seen_parts.add(phrase_lower)
-
-                if len(result) >= num_keywords:
-                    break
-
-        # THIRD PASS: Get 2-word phrases only if really needed
-        if len(result) < num_keywords // 2:
-            for phrase, count in all_phrases:
-                if phrase in result:
-                    continue
-
-                word_count = len(phrase.split())
-                if word_count != 2:
-                    continue
-
-                if count < 3:  # Higher threshold for 2-word phrases
-                    continue
-
-                phrase_lower = phrase.lower().strip()
-
-                is_duplicate = False
-                for seen in seen_parts:
-                    if phrase_lower == seen or phrase_lower in seen or seen in phrase_lower:
-                        is_duplicate = True
-                        break
-
-                if not is_duplicate and len(phrase) >= 8:  # Longer 2-word phrases only
-                    result.append(phrase)
-                    seen_parts.add(phrase_lower)
-
-                if len(result) >= num_keywords:
-                    break
-
-        # FALLBACK: Extract from full titles if still not enough
-        if len(result) < num_keywords // 2:
-            print(f"⚠️  구문 추출 부족 ({len(result)}개). 제목에서 직접 추출 중...")
-            for title in titles[:100]:
-                cleaned = re.sub(r'[🎮🎯🔥💯👍❤️😊😂🤣😭🥰😍🤔💪🎉🎊✨⭐🌟💖💕💗💝💘💓💞💟☀️🌙⛅🌈\[\]\(\)]+', '', title)
-                cleaned = re.sub(r'\s+', ' ', cleaned).strip()
-
-                words = cleaned.split()
-                if len(words) >= 4:
-                    # First 4-5 words
-                    phrase = ' '.join(words[:min(5, len(words))])
-                    if len(phrase) >= 10 and phrase not in result:
-                        # Check not duplicate
-                        is_dup = any(phrase.lower() in r.lower() or r.lower() in phrase.lower() for r in result)
-                        if not is_dup:
-                            result.append(phrase)
-                            if len(result) >= num_keywords:
-                                break
-
-        print(f"✅ 추출된 구문: {len(result)}개 (평균 단어 수: {sum(len(p.split()) for p in result) / len(result):.1f}개)")
-        return result[:num_keywords]
+        return keywords[:num_keywords]
 
     def get_trending_keywords(
         self,
