@@ -222,107 +222,109 @@ class TrendsExplorer:
     def _extract_keywords_from_titles(self, titles: List[str], num_keywords: int = 20) -> List[str]:
         """
         Extract trending keyword phrases from video titles
-        Uses actual video titles as keywords for maximum relevance
+        Focus on short, meaningful 2-4 word phrases
 
         Args:
             titles: List of video titles
             num_keywords: Number of keywords to extract
 
         Returns:
-            List of extracted keyword phrases (actual video titles or title segments)
+            List of extracted keyword phrases (2-4 words, max 30 characters)
         """
         keywords = []
         seen = set()
 
-        # STRATEGY 1: Use short, meaningful titles directly (10-50 characters)
+        # Clean and prepare titles
+        cleaned_titles = []
         for title in titles:
-            # Clean title
-            cleaned = re.sub(r'[🎮🎯🔥💯👍❤️😊😂🤣😭🥰😍🤔💪🎉🎊✨⭐🌟💖💕💗💝💘💓💞💟☀️🌙⛅🌈🎵🎶🎤🎧🎬📺📷📸🎨🖼️]+', '', title)
-            cleaned = re.sub(r'[★☆♡♥→←↑↓■□●○◆◇▲△▼▽※\[\]\(\)]+', '', cleaned)
+            # Remove emojis and special characters
+            cleaned = re.sub(r'[🎮🎯🔥💯👍❤️😊😂🤣😭🥰😍🤔💪🎉🎊✨⭐🌟💖💕💗💝💘💓💞💟☀️🌙⛅🌈🎵🎶🎤🎧🎬📺📷📸🎨🖼️⚡💥🏆🥇🥈🥉🎁🎀]+', '', title)
+            cleaned = re.sub(r'[★☆♡♥→←↑↓■□●○◆◇▲△▼▽※]+', '', cleaned)
+
+            # Remove hashtags and content after them
+            cleaned = re.sub(r'#\S+', '', cleaned)
+
+            # Remove brackets and parentheses with content
+            cleaned = re.sub(r'\[.*?\]', '', cleaned)
+            cleaned = re.sub(r'\(.*?\)', '', cleaned)
+
+            # Remove quotes and special punctuation
+            cleaned = re.sub(r'["""\'\']+', '', cleaned)
+            cleaned = re.sub(r'[!?]+', '', cleaned)
+
+            # Remove multiple spaces
             cleaned = re.sub(r'\s+', ' ', cleaned).strip()
 
-            # Use titles that are 10-50 characters long (good keyword length)
-            if 10 <= len(cleaned) <= 50:
-                cleaned_lower = cleaned.lower()
-                # Skip if too similar to existing
-                if not any(cleaned_lower in s or s in cleaned_lower for s in seen):
-                    keywords.append(cleaned)
-                    seen.add(cleaned_lower)
+            if len(cleaned) >= 5:
+                cleaned_titles.append(cleaned)
+
+        # STRATEGY 1: Extract 3-4 word phrases (frequency-based)
+        phrase_counter = Counter()
+
+        for title in cleaned_titles:
+            words = title.split()
+
+            # Extract 3-4 word phrases
+            for phrase_len in [4, 3]:
+                for i in range(len(words) - phrase_len + 1):
+                    phrase = ' '.join(words[i:i + phrase_len])
+
+                    # Filter by length (8-30 characters for Korean/English mix)
+                    if 8 <= len(phrase) <= 30:
+                        # Skip if mostly numbers or special chars
+                        if sum(c.isdigit() for c in phrase) < len(phrase) * 0.3:
+                            phrase_counter[phrase] += 1
+
+        # Add most common 3-4 word phrases
+        for phrase, count in phrase_counter.most_common(num_keywords * 2):
+            if count >= 2:  # At least 2 occurrences
+                phrase_lower = phrase.lower()
+                if not any(phrase_lower in s or s in phrase_lower for s in seen):
+                    keywords.append(phrase)
+                    seen.add(phrase_lower)
                     if len(keywords) >= num_keywords:
                         return keywords
 
-        # STRATEGY 2: Extract first N words from longer titles
-        for title in titles:
-            cleaned = re.sub(r'[🎮🎯🔥💯👍❤️😊😂🤣😭🥰😍🤔💪🎉🎊✨⭐🌟💖💕💗💝💘💓💞💟☀️🌙⛅🌈\[\]\(\)]+', '', title)
-            cleaned = re.sub(r'\s+', ' ', cleaned).strip()
+        # STRATEGY 2: Extract 2-3 word phrases from title beginnings
+        for title in cleaned_titles:
+            words = title.split()
 
-            words = cleaned.split()
-
-            # Try 5-word, 4-word, 3-word phrases from beginning of title
-            for n in [5, 4, 3]:
+            # Try 3-word, then 2-word phrases from beginning
+            for n in [3, 2]:
                 if len(words) >= n:
                     phrase = ' '.join(words[:n])
                     phrase_lower = phrase.lower()
 
-                    # Check length and uniqueness
-                    if 10 <= len(phrase) <= 50:
+                    # Check length (6-25 characters)
+                    if 6 <= len(phrase) <= 25:
                         if not any(phrase_lower in s or s in phrase_lower for s in seen):
                             keywords.append(phrase)
                             seen.add(phrase_lower)
                             if len(keywords) >= num_keywords:
                                 return keywords
-                            break  # Got one phrase from this title, move to next
+                            break
 
-        # STRATEGY 3: Frequency-based extraction with very low threshold
-        phrase_counter = Counter()
+        # STRATEGY 3: Single-pass through all 2-4 word combinations
+        phrase_counter_all = Counter()
 
-        for title in titles:
-            cleaned = re.sub(r'[🎮🎯🔥💯👍❤️😊😂🤣😭🥰😍🤔💪🎉🎊✨⭐🌟💖💕💗💝💘💓💞💟☀️🌙⛅🌈\[\]\(\)]+', '', title)
-            cleaned = re.sub(r'\s+', ' ', cleaned).strip()
-            words = cleaned.split()
+        for title in cleaned_titles:
+            words = title.split()
 
-            # Extract 3-6 word phrases
-            for phrase_len in [6, 5, 4, 3]:
+            # Extract all 2-4 word phrases
+            for phrase_len in [4, 3, 2]:
                 for i in range(len(words) - phrase_len + 1):
                     phrase = ' '.join(words[i:i + phrase_len])
 
-                    if 10 <= len(phrase) <= 60:
-                        # Skip if mostly numbers
-                        if sum(c.isdigit() for c in phrase) < len(phrase) * 0.3:
-                            phrase_counter[phrase] += 1
+                    if 6 <= len(phrase) <= 30:
+                        if sum(c.isdigit() for c in phrase) < len(phrase) * 0.4:
+                            phrase_counter_all[phrase] += 1
 
-        # Add high-frequency phrases
-        for phrase, count in phrase_counter.most_common(num_keywords * 3):
+        # Add any remaining phrases
+        for phrase, count in phrase_counter_all.most_common(num_keywords * 3):
             phrase_lower = phrase.lower()
             if not any(phrase_lower in s or s in phrase_lower for s in seen):
                 keywords.append(phrase)
                 seen.add(phrase_lower)
-                if len(keywords) >= num_keywords:
-                    return keywords
-
-        # STRATEGY 4: Fallback - just take title segments
-        for title in titles:
-            cleaned = re.sub(r'[🎮🎯🔥💯👍❤️😊😂🤣😭🥰😍🤔💪🎉🎊✨⭐🌟💖💕💗💝💘💓💞💟☀️🌙⛅🌈\[\]\(\)]+', '', title)
-            cleaned = re.sub(r'\s+', ' ', cleaned).strip()
-
-            if 8 <= len(cleaned) <= 60:
-                # Split long titles in half
-                if len(cleaned) > 30:
-                    words = cleaned.split()
-                    mid = len(words) // 2
-                    phrase = ' '.join(words[:mid])
-                    if len(phrase) >= 10:
-                        phrase_lower = phrase.lower()
-                        if not any(phrase_lower in s or s in phrase_lower for s in seen):
-                            keywords.append(phrase)
-                            seen.add(phrase_lower)
-                else:
-                    # Use whole title
-                    cleaned_lower = cleaned.lower()
-                    if not any(cleaned_lower in s or s in cleaned_lower for s in seen):
-                        keywords.append(cleaned)
-                        seen.add(cleaned_lower)
-
                 if len(keywords) >= num_keywords:
                     return keywords
 
