@@ -222,17 +222,26 @@ class TrendsExplorer:
     def _extract_keywords_from_titles(self, titles: List[str], num_keywords: int = 20) -> List[str]:
         """
         Extract trending keyword phrases from video titles
-        Focus on short, meaningful 2-4 word phrases
+        Focus on short, meaningful 3-4 word phrases
 
         Args:
             titles: List of video titles
             num_keywords: Number of keywords to extract
 
         Returns:
-            List of extracted keyword phrases (2-4 words, max 30 characters)
+            List of extracted keyword phrases (3-4 words, max 20 characters)
         """
         keywords = []
         seen = set()
+
+        # Korean stopwords to remove
+        stopwords = {
+            '의', '를', '을', '이', '가', '에', '도', '와', '과', '로', '으로', '에서',
+            '부터', '까지', '보다', '처럼', '같이', '하는', '되는', '한', '된', '있는',
+            '없는', '위한', '대한', '위해', '대해', '있다', '없다', '하다', '되다',
+            '천천히', '빠르게', '정말', '진짜', '완전', '너무', '아주', '매우',
+            '봐야', '보면', '보이는', '보는', '본', '보고'
+        }
 
         # Clean and prepare titles
         cleaned_titles = []
@@ -241,16 +250,20 @@ class TrendsExplorer:
             cleaned = re.sub(r'[🎮🎯🔥💯👍❤️😊😂🤣😭🥰😍🤔💪🎉🎊✨⭐🌟💖💕💗💝💘💓💞💟☀️🌙⛅🌈🎵🎶🎤🎧🎬📺📷📸🎨🖼️⚡💥🏆🥇🥈🥉🎁🎀]+', '', title)
             cleaned = re.sub(r'[★☆♡♥→←↑↓■□●○◆◇▲△▼▽※]+', '', cleaned)
 
-            # Remove hashtags and content after them
-            cleaned = re.sub(r'#\S+', '', cleaned)
+            # Remove hashtags (everything after #)
+            if '#' in cleaned:
+                cleaned = cleaned.split('#')[0]
 
             # Remove brackets and parentheses with content
             cleaned = re.sub(r'\[.*?\]', '', cleaned)
             cleaned = re.sub(r'\(.*?\)', '', cleaned)
 
-            # Remove quotes and special punctuation
-            cleaned = re.sub(r'["""\'\']+', '', cleaned)
-            cleaned = re.sub(r'[!?]+', '', cleaned)
+            # Remove quotes and exclamation marks
+            cleaned = re.sub(r'["""\'\'!?]+', '', cleaned)
+
+            # Remove numbers and uppercase letters like "4M", "TRUE"
+            cleaned = re.sub(r'\b[A-Z0-9]+\b', '', cleaned)
+            cleaned = re.sub(r'\b\d+\w*\b', '', cleaned)
 
             # Remove multiple spaces
             cleaned = re.sub(r'\s+', ' ', cleaned).strip()
@@ -258,45 +271,47 @@ class TrendsExplorer:
             if len(cleaned) >= 5:
                 cleaned_titles.append(cleaned)
 
-        # STRATEGY 1: Extract 3-4 word phrases (frequency-based)
+        # STRATEGY 1: Extract core 3-4 word phrases (frequency-based, with stopword removal)
         phrase_counter = Counter()
 
         for title in cleaned_titles:
-            words = title.split()
+            words = [w for w in title.split() if w not in stopwords and len(w) > 1]
 
-            # Extract 3-4 word phrases
+            # Extract 3-4 word phrases (after removing stopwords)
             for phrase_len in [4, 3]:
                 for i in range(len(words) - phrase_len + 1):
                     phrase = ' '.join(words[i:i + phrase_len])
 
-                    # Filter by length (8-30 characters for Korean/English mix)
-                    if 8 <= len(phrase) <= 30:
-                        # Skip if mostly numbers or special chars
+                    # Filter by length (6-20 characters - much shorter!)
+                    if 6 <= len(phrase) <= 20:
+                        # Skip if mostly numbers
                         if sum(c.isdigit() for c in phrase) < len(phrase) * 0.3:
                             phrase_counter[phrase] += 1
 
         # Add most common 3-4 word phrases
         for phrase, count in phrase_counter.most_common(num_keywords * 2):
-            if count >= 2:  # At least 2 occurrences
-                phrase_lower = phrase.lower()
+            phrase_lower = phrase.lower()
+            # Check word count (must be 2-4 words)
+            word_count = len(phrase.split())
+            if 2 <= word_count <= 4:
                 if not any(phrase_lower in s or s in phrase_lower for s in seen):
                     keywords.append(phrase)
                     seen.add(phrase_lower)
                     if len(keywords) >= num_keywords:
                         return keywords
 
-        # STRATEGY 2: Extract 2-3 word phrases from title beginnings
+        # STRATEGY 2: Extract key phrases from various positions (with stopword removal)
         for title in cleaned_titles:
-            words = title.split()
+            words = [w for w in title.split() if w not in stopwords and len(w) > 1]
 
-            # Try 3-word, then 2-word phrases from beginning
-            for n in [3, 2]:
-                if len(words) >= n:
-                    phrase = ' '.join(words[:n])
+            # Try different 3-4 word combinations
+            for phrase_len in [4, 3]:
+                for i in range(len(words) - phrase_len + 1):
+                    phrase = ' '.join(words[i:i + phrase_len])
                     phrase_lower = phrase.lower()
 
-                    # Check length (6-25 characters)
-                    if 6 <= len(phrase) <= 25:
+                    # Check length (6-20 characters)
+                    if 6 <= len(phrase) <= 20:
                         if not any(phrase_lower in s or s in phrase_lower for s in seen):
                             keywords.append(phrase)
                             seen.add(phrase_lower)
@@ -304,33 +319,26 @@ class TrendsExplorer:
                                 return keywords
                             break
 
-        # STRATEGY 3: Single-pass through all 2-4 word combinations
-        phrase_counter_all = Counter()
-
+        # STRATEGY 3: Fallback - extract any 2-3 word phrases
         for title in cleaned_titles:
-            words = title.split()
+            words = [w for w in title.split() if w not in stopwords and len(w) > 1]
 
-            # Extract all 2-4 word phrases
-            for phrase_len in [4, 3, 2]:
-                for i in range(len(words) - phrase_len + 1):
-                    phrase = ' '.join(words[i:i + phrase_len])
+            for phrase_len in [3, 2]:
+                if len(words) >= phrase_len:
+                    phrase = ' '.join(words[:phrase_len])
+                    phrase_lower = phrase.lower()
 
-                    if 6 <= len(phrase) <= 30:
-                        if sum(c.isdigit() for c in phrase) < len(phrase) * 0.4:
-                            phrase_counter_all[phrase] += 1
-
-        # Add any remaining phrases
-        for phrase, count in phrase_counter_all.most_common(num_keywords * 3):
-            phrase_lower = phrase.lower()
-            if not any(phrase_lower in s or s in phrase_lower for s in seen):
-                keywords.append(phrase)
-                seen.add(phrase_lower)
-                if len(keywords) >= num_keywords:
-                    return keywords
+                    if 5 <= len(phrase) <= 20:
+                        if not any(phrase_lower in s or s in phrase_lower for s in seen):
+                            keywords.append(phrase)
+                            seen.add(phrase_lower)
+                            if len(keywords) >= num_keywords:
+                                return keywords
 
         # Calculate average word count
         avg_words = sum(len(k.split()) for k in keywords) / len(keywords) if keywords else 0
-        print(f"✅ 추출된 구문: {len(keywords)}개 (평균 단어 수: {avg_words:.1f}개)")
+        avg_len = sum(len(k) for k in keywords) / len(keywords) if keywords else 0
+        print(f"✅ 추출된 구문: {len(keywords)}개 (평균 단어 수: {avg_words:.1f}개, 평균 길이: {avg_len:.1f}자)")
 
         return keywords[:num_keywords]
 
