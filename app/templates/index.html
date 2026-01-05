@@ -19,6 +19,19 @@
             placeholder="Xiaohongshu 동영상 URL을 입력하세요 (여러 개 가능, 한 줄에 하나씩)&#10;&#10;예시:&#10;https://www.xiaohongshu.com/explore/xxxxx&#10;https://xhslink.com/xxxxx"
             style="width: 100%; padding: 16px; background: #0a0a0a; border: 1px solid #333; border-radius: 8px; color: #fff; font-size: 14px; resize: vertical; font-family: monospace;"></textarea>
 
+        <div style="margin-top: 16px;">
+            <label for="qualitySelect" style="display: block; color: #fff; font-size: 14px; margin-bottom: 8px; font-weight: 500;">
+                화질 선택
+            </label>
+            <select
+                id="qualitySelect"
+                style="width: 100%; padding: 12px; background: #0a0a0a; border: 1px solid #333; border-radius: 8px; color: #fff; font-size: 14px; cursor: pointer;">
+                <option value="best">최고 화질 (원본)</option>
+                <option value="1080p">1080p</option>
+                <option value="720p">720p</option>
+            </select>
+        </div>
+
         <button
             onclick="downloadVideos()"
             id="downloadBtn"
@@ -108,6 +121,7 @@
 <script>
 async function downloadVideos() {
     const urlInput = document.getElementById('urlInput');
+    const qualitySelect = document.getElementById('qualitySelect');
     const downloadBtn = document.getElementById('downloadBtn');
     const loading = document.getElementById('loading');
     const resultsContainer = document.getElementById('resultsContainer');
@@ -117,6 +131,8 @@ async function downloadVideos() {
         .split('\n')
         .map(url => url.trim())
         .filter(url => url.length > 0);
+
+    const quality = qualitySelect.value;
 
     if (urls.length === 0) {
         alert('URL을 입력해주세요');
@@ -135,7 +151,7 @@ async function downloadVideos() {
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ urls })
+            body: JSON.stringify({ urls, quality })
         });
 
         if (!response.ok) {

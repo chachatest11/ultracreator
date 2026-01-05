@@ -39,7 +39,8 @@ class VideoDownloader:
     def download_video(
         self,
         url: str,
-        custom_name: Optional[str] = None
+        custom_name: Optional[str] = None,
+        quality: str = "best"
     ) -> Dict:
         """
         단일 비디오 다운로드
@@ -47,6 +48,7 @@ class VideoDownloader:
         Args:
             url: Xiaohongshu 동영상 URL
             custom_name: 커스텀 파일명 (선택)
+            quality: 화질 선택 (best, 1080p, 720p)
 
         Returns:
             {
@@ -67,11 +69,19 @@ class VideoDownloader:
 
             output_path = os.path.join(self.download_dir, filename)
 
+            # 화질에 따른 format 옵션 결정
+            if quality == "1080p":
+                format_option = "bestvideo[height<=1080]+bestaudio/best[height<=1080]"
+            elif quality == "720p":
+                format_option = "bestvideo[height<=720]+bestaudio/best[height<=720]"
+            else:  # best (최고화질)
+                format_option = "bestvideo+bestaudio/best"
+
             # yt-dlp 명령어
             command = [
                 "yt-dlp",
-                # 비디오+오디오 병합, 최대 가능한 해상도
-                "-f", "best",
+                # 비디오+오디오 병합
+                "-f", format_option,
                 # 병합 출력 형식을 MP4로 지정
                 "--merge-output-format", "mp4",
                 # 출력 파일 경로

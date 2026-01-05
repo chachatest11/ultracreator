@@ -20,6 +20,7 @@ class DownloadStartRequest(BaseModel):
 
 class QuickDownloadRequest(BaseModel):
     urls: List[str]
+    quality: str = "best"  # best, 1080p, 720p
 
 
 @router.post("/start")
@@ -237,7 +238,7 @@ def quick_download(data: QuickDownloadRequest):
 
         try:
             # 다운로드 수행
-            result = downloader.download_video(url)
+            result = downloader.download_video(url, quality=data.quality)
 
             if result["success"]:
                 results.append({
