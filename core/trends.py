@@ -123,7 +123,13 @@ class TranslationManager:
                 source_lang=source_deepl,
                 target_lang=target_deepl
             )
-            return result.text if result.text else text
+
+            if result.text:
+                # Shorten the translation to keep it concise
+                shortened = self._shorten_translation(result.text, max_words=3, max_chars=20)
+                return shortened if shortened else result.text
+            else:
+                return text
         except Exception as e:
             print(f"⚠️  DeepL 번역 오류 ({text[:30]}...): {str(e)[:50]}")
             return text
@@ -148,6 +154,42 @@ class TranslationManager:
 
         return cleaned
 
+    def _shorten_translation(self, translated_text: str, max_words: int = 3, max_chars: int = 20) -> str:
+        """
+        Shorten translated text to keep it concise
+
+        Args:
+            translated_text: Translated text
+            max_words: Maximum number of words (default: 3)
+            max_chars: Maximum characters (default: 20)
+
+        Returns:
+            Shortened translation
+        """
+        import re
+
+        # Remove articles and possessives
+        text = translated_text
+        text = re.sub(r"\b(the|The|a|A|an|An)\b\s*", "", text)  # English articles
+        text = re.sub(r"'s\b", "", text)  # Possessive 's
+        text = re.sub(r"\bの\b", "", text)  # Japanese の (possessive)
+        text = re.sub(r"\b的\b", "", text)  # Chinese 的 (possessive)
+
+        # Split into words
+        words = text.split()
+
+        # Take first max_words
+        if len(words) > max_words:
+            words = words[:max_words]
+
+        result = ' '.join(words)
+
+        # If still too long, truncate by characters
+        if len(result) > max_chars:
+            result = result[:max_chars].rsplit(' ', 1)[0]  # Cut at last word boundary
+
+        return result.strip()
+
     def _translate_google(self, text: str, target_lang: str, source_lang: str) -> str:
         """Translate using Google Translate (free) with retry logic"""
         import time
@@ -167,7 +209,9 @@ class TranslationManager:
                 result = translator.translate(cleaned_text)
 
                 if result and len(result) > 0:
-                    return result
+                    # Shorten the translation to keep it concise
+                    shortened = self._shorten_translation(result, max_words=3, max_chars=20)
+                    return shortened if shortened else result
                 else:
                     # If no result, wait and retry
                     if attempt < max_retries - 1:
@@ -222,14 +266,14 @@ class TrendsExplorer:
     def _extract_keywords_from_titles(self, titles: List[str], num_keywords: int = 20) -> List[str]:
         """
         Extract trending keyword phrases from video titles
-        Focus on very short, concise 2-3 word phrases
+        Focus on EXTREMELY short 2-word phrases ONLY
 
         Args:
             titles: List of video titles
             num_keywords: Number of keywords to extract
 
         Returns:
-            List of extracted keyword phrases (2-3 words, max 15 characters)
+            List of extracted keyword phrases (EXACTLY 2 words, 4-12 characters)
         """
         keywords = []
         seen = set()
@@ -280,7 +324,7 @@ class TrendsExplorer:
             if len(cleaned) >= 5:
                 cleaned_titles.append(cleaned)
 
-        # STRATEGY 1: Extract core 2-3 word phrases (frequency-based)
+        # STRATEGY 1: Extract core 2-word phrases ONLY (frequency-based)
         phrase_counter = Counter()
 
         for title in cleaned_titles:
@@ -292,30 +336,29 @@ class TrendsExplorer:
                     if clean_word and len(clean_word) > 1:
                         words.append(clean_word)
 
-            # Extract 2-3 word phrases only (shorter is better!)
-            for phrase_len in [3, 2]:
-                for i in range(len(words) - phrase_len + 1):
-                    phrase = ' '.join(words[i:i + phrase_len])
+            # Extract ONLY 2-word phrases (no 3-word!)
+            for i in range(len(words) - 1):
+                phrase = ' '.join(words[i:i + 2])
 
-                    # Filter by length (5-15 characters - very short!)
-                    if 5 <= len(phrase) <= 15:
-                        # Skip if mostly numbers
-                        if sum(c.isdigit() for c in phrase) < len(phrase) * 0.3:
-                            phrase_counter[phrase] += 1
+                # Filter by length (4-12 characters - very short!)
+                if 4 <= len(phrase) <= 12:
+                    # Skip if mostly numbers
+                    if sum(c.isdigit() for c in phrase) < len(phrase) * 0.3:
+                        phrase_counter[phrase] += 1
 
-        # Add most common 2-3 word phrases
+        # Add most common 2-word phrases ONLY
         for phrase, count in phrase_counter.most_common(num_keywords * 2):
             phrase_lower = phrase.lower()
-            # Check word count (must be 2-3 words)
+            # Check word count (must be EXACTLY 2 words)
             word_count = len(phrase.split())
-            if 2 <= word_count <= 3:
+            if word_count == 2:
                 if not any(phrase_lower in s or s in phrase_lower for s in seen):
                     keywords.append(phrase)
                     seen.add(phrase_lower)
                     if len(keywords) >= num_keywords:
                         return keywords
 
-        # STRATEGY 2: Extract phrases from title beginnings
+        # STRATEGY 2: Extract 2-word phrases from title beginnings
         for title in cleaned_titles:
             words = []
             for w in title.split():
@@ -324,20 +367,18 @@ class TrendsExplorer:
                     if clean_word and len(clean_word) > 1:
                         words.append(clean_word)
 
-            # Try 3-word, then 2-word phrases from beginning
-            for phrase_len in [3, 2]:
-                if len(words) >= phrase_len:
-                    phrase = ' '.join(words[:phrase_len])
-                    phrase_lower = phrase.lower()
+            # ONLY 2-word phrases from beginning
+            if len(words) >= 2:
+                phrase = ' '.join(words[:2])
+                phrase_lower = phrase.lower()
 
-                    # Check length (5-15 characters)
-                    if 5 <= len(phrase) <= 15:
-                        if not any(phrase_lower in s or s in phrase_lower for s in seen):
-                            keywords.append(phrase)
-                            seen.add(phrase_lower)
-                            if len(keywords) >= num_keywords:
-                                return keywords
-                            break
+                # Check length (4-12 characters)
+                if 4 <= len(phrase) <= 12:
+                    if not any(phrase_lower in s or s in phrase_lower for s in seen):
+                        keywords.append(phrase)
+                        seen.add(phrase_lower)
+                        if len(keywords) >= num_keywords:
+                            return keywords
 
         # STRATEGY 3: Single meaningful words as last resort
         for title in cleaned_titles:
