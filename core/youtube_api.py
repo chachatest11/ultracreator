@@ -484,7 +484,7 @@ def get_popular_videos_by_category(
         region_code: Region code (e.g., 'KR', 'US', 'JP')
 
     Returns:
-        List of video IDs
+        List of video IDs (empty list if category not available in region)
     """
     url = f"{BASE_URL}/videos"
     video_ids = []
@@ -517,6 +517,13 @@ def get_popular_videos_by_category(
             params["pageToken"] = next_page_token
 
         return video_ids[:max_results]
+
+    except YouTubeAPIError as e:
+        # If 404 error, category not available in this region
+        if "404" in str(e):
+            print(f"⚠️  카테고리 ID {category_id}가 {region_code} 지역에서 지원되지 않습니다.")
+            return []  # Return empty list to trigger fallback
+        raise  # Re-raise other errors
 
     except (KeyError, ValueError) as e:
         raise YouTubeAPIError(f"Failed to fetch popular videos: {e}")

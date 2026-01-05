@@ -397,49 +397,141 @@ class TrendsExplorer:
             return self._generate_category_keywords(category, num_keywords)
 
     def _generate_category_keywords(self, category: str, num_keywords: int) -> List[str]:
-        """Generate basic keywords for a category (fallback)"""
-        # Basic keyword templates for each category
+        """
+        Generate keywords for a category using YouTube search (fallback)
+        Uses search API to find real trending content instead of templates
+        """
+        print(f"🔍 검색 API를 사용하여 '{category}' 관련 인기 콘텐츠를 찾는 중...")
+
+        try:
+            # Search for videos related to this category
+            search_results = youtube_api.search_videos(
+                query=category,
+                max_results=50,
+                order="viewCount"  # Order by view count for popular content
+            )
+
+            if search_results:
+                # Get video IDs
+                video_ids = [video['video_id'] for video in search_results]
+
+                # Get detailed info
+                videos = youtube_api.get_videos_info(video_ids)
+
+                if videos:
+                    # Extract titles
+                    titles = [video['title'] for video in videos if video.get('title')]
+                    print(f"✅ 검색으로 {len(titles)}개 영상 제목 수집 완료")
+
+                    # Extract keywords from titles
+                    keywords = self._extract_keywords_from_titles(titles, num_keywords)
+
+                    if keywords:
+                        print(f"✅ 검색 기반 {len(keywords)}개 키워드 생성 완료")
+                        return keywords
+
+        except Exception as e:
+            print(f"⚠️  검색 API 오류: {e}")
+
+        # Ultimate fallback: use templates
+        print(f"⚠️  템플릿 기반 키워드 생성 중...")
         templates = {
             "게임": [
-                "{} 하이라이트", "{} 공략", "{} 리뷰", "{} 플레이",
-                "{} 신작", "{} 업데이트", "{} 팁", "{} 명장면"
+                "인기 게임 리뷰", "게임 공략 가이드", "게임 하이라이트 모음",
+                "신작 게임 플레이", "게임 팁과 요령", "게임 업데이트 소식",
+                "게임 명장면 모음", "게임 리뷰 추천", "인기 게임 순위",
+                "게임 스트리밍 방송"
             ],
             "스포츠": [
-                "{} 하이라이트", "{} 경기", "{} 명장면", "{} 골",
-                "{} 리뷰", "{} 분석", "{} 실시간", "{} 중계"
+                "스포츠 하이라이트 모음", "경기 명장면 분석", "선수 인터뷰 모음",
+                "스포츠 뉴스 속보", "경기 리뷰 분석", "스포츠 훈련 영상",
+                "명경기 다시보기", "스포츠 해설 방송", "선수 기량 분석",
+                "스포츠 매거진 리뷰"
             ],
             "음악": [
-                "{} 신곡", "{} 뮤직비디오", "{} 라이브", "{} 커버",
-                "{} 노래", "{} 앨범", "{} 콘서트", "{} 무대"
+                "신곡 뮤직비디오 모음", "인기 음악 차트", "라이브 공연 영상",
+                "음악 커버 모음", "가수 무대 영상", "콘서트 실황 중계",
+                "음악 방송 출연", "신곡 발매 소식", "음악 리뷰 평가",
+                "히트곡 메들리 모음"
             ],
             "영화/애니메이션": [
-                "{} 예고편", "{} 리뷰", "{} 명장면", "{} 분석",
-                "{} 해석", "{} 요약", "{} 결말", "{} 시리즈"
+                "영화 예고편 모음", "애니메이션 리뷰", "영화 명장면 분석",
+                "영화 해석 영상", "애니메이션 추천", "영화 줄거리 요약",
+                "영화 엔딩 해석", "시리즈 총정리", "애니메이션 명장면",
+                "영화 비평 리뷰"
             ],
             "교육": [
-                "{} 강의", "{} 설명", "{} 공부", "{} 배우기",
-                "{} 이해하기", "{} 입문", "{} 기초", "{} 고급"
+                "쉬운 교육 강의", "초보자를 위한 설명", "기초부터 배우는 가이드",
+                "실전 활용 강의", "단계별 학습 방법", "핵심 개념 정리",
+                "입문자 강의 추천", "고급 심화 학습", "실습 강의 모음",
+                "핵심 요약 정리"
             ],
             "과학/기술": [
-                "{} 리뷰", "{} 설명", "{} 작동원리", "{} 비교",
-                "{} 분석", "{} 신기술", "{} 개발", "{} 발표"
+                "최신 기술 리뷰", "과학 원리 설명", "기술 작동 원리",
+                "제품 비교 분석", "신기술 소개 영상", "과학 실험 영상",
+                "기술 뉴스 속보", "제품 개봉 리뷰", "과학 다큐멘터리",
+                "기술 트렌드 분석"
+            ],
+            "노하우/스타일": [
+                "패션 스타일 가이드", "뷰티 메이크업 팁", "DIY 만들기 영상",
+                "인테리어 꾸미기", "요리 레시피 모음", "생활 꿀팁 정리",
+                "스타일링 노하우", "취미 배우기 강좌", "실용 정보 모음",
+                "전문가 팁 공유"
+            ],
+            "뉴스/정치": [
+                "오늘의 뉴스 속보", "정치 이슈 분석", "시사 토론 영상",
+                "뉴스 해설 방송", "정치 뉴스 정리", "사회 이슈 리뷰",
+                "국제 뉴스 속보", "정책 분석 영상", "뉴스 브리핑 모음",
+                "현안 이슈 정리"
+            ],
+            "비영리/사회운동": [
+                "사회 공헌 활동", "봉사 활동 영상", "캠페인 홍보 영상",
+                "환경 보호 활동", "기부 문화 소개", "사회 운동 현장",
+                "자선 행사 영상", "공익 광고 모음", "나눔 문화 실천",
+                "사회 변화 운동"
+            ],
+            "애완동물/동물": [
+                "반려동물 일상 브이로그", "귀여운 동물 영상", "동물 훈련 가이드",
+                "반려동물 키우기 팁", "동물 다큐멘터리", "동물 행동 분석",
+                "펫 케어 정보", "동물 병원 정보", "반려동물 용품 리뷰",
+                "동물 놀이 영상"
+            ],
+            "엔터테인먼트": [
+                "예능 프로그램 모음", "인기 방송 클립", "연예인 인터뷰",
+                "예능 명장면 모음", "토크쇼 영상", "버라이어티 쇼",
+                "코미디 영상 모음", "리얼리티 쇼", "방송 비하인드",
+                "예능 하이라이트"
+            ],
+            "여행/이벤트": [
+                "여행지 추천 영상", "여행 브이로그", "이벤트 현장 영상",
+                "관광지 소개", "여행 정보 가이드", "축제 현장 리포트",
+                "해외 여행 팁", "국내 여행지 추천", "여행 경비 절약법",
+                "이벤트 참여 후기"
             ]
         }
 
-        # Get templates for this category or use generic ones
+        # Get templates for this category
         category_templates = templates.get(
             category,
-            ["{} 영상", "{} 리뷰", "{} 하는법", "{} 추천"]
+            [
+                "인기 영상 모음", "추천 콘텐츠", "베스트 영상 순위",
+                "핫한 영상 모음", "재미있는 영상", "화제의 영상",
+                "놓치면 안되는 영상", "인기 순위 모음", "트렌드 영상",
+                "화제의 콘텐츠"
+            ]
         )
 
-        # Generate keywords
-        keywords = []
-        for template in category_templates[:num_keywords]:
-            # Use category name or leave as template
-            keyword = template.format(category)
-            keywords.append(keyword)
+        # Return as many templates as requested
+        keywords = category_templates[:num_keywords]
 
-        return keywords
+        # If we need more, repeat with variations
+        while len(keywords) < num_keywords:
+            for template in category_templates:
+                if len(keywords) >= num_keywords:
+                    break
+                keywords.append(template)
+
+        return keywords[:num_keywords]
 
     def explore_category_with_translations(
         self,
