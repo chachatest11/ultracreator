@@ -125,7 +125,7 @@ with st.expander("⚙️ 고급 설정"):
     with col2:
         use_cache = st.checkbox(
             "캐시 사용 (24시간)",
-            value=True,
+            value=False,
             help="같은 카테고리에 대해 24시간 이내 결과를 재사용합니다."
         )
 
