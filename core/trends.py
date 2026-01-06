@@ -125,8 +125,8 @@ class TranslationManager:
             )
 
             if result.text:
-                # Shorten the translation to keep it concise
-                shortened = self._shorten_translation(result.text, max_words=3, max_chars=20)
+                # Shorten the translation to keep it concise (EXACTLY 2 words, max 15 chars)
+                shortened = self._shorten_translation(result.text, max_words=2, max_chars=15)
                 return shortened if shortened else result.text
             else:
                 return text
@@ -154,31 +154,55 @@ class TranslationManager:
 
         return cleaned
 
-    def _shorten_translation(self, translated_text: str, max_words: int = 3, max_chars: int = 20) -> str:
+    def _shorten_translation(self, translated_text: str, max_words: int = 2, max_chars: int = 15) -> str:
         """
-        Shorten translated text to keep it concise
+        Aggressively shorten translated text to keep it VERY concise
 
         Args:
             translated_text: Translated text
-            max_words: Maximum number of words (default: 3)
-            max_chars: Maximum characters (default: 20)
+            max_words: Maximum number of words (default: 2)
+            max_chars: Maximum characters (default: 15)
 
         Returns:
-            Shortened translation
+            Shortened translation (exactly 2 words if possible)
         """
         import re
 
-        # Remove articles and possessives
-        text = translated_text
-        text = re.sub(r"\b(the|The|a|A|an|An)\b\s*", "", text)  # English articles
+        text = translated_text.strip()
+
+        # Remove all articles and particles across languages
+        # English
+        text = re.sub(r"\b(the|The|a|A|an|An|is|was|are|were|be|been|being)\b\s*", "", text)
         text = re.sub(r"'s\b", "", text)  # Possessive 's
-        text = re.sub(r"\bの\b", "", text)  # Japanese の (possessive)
-        text = re.sub(r"\b的\b", "", text)  # Chinese 的 (possessive)
+
+        # Spanish/Portuguese
+        text = re.sub(r"\b(el|la|los|las|un|una|de|del|al|por|para|con)\b\s*", "", text, flags=re.IGNORECASE)
+
+        # French
+        text = re.sub(r"\b(le|la|les|un|une|de|du|des|au|aux)\b\s*", "", text, flags=re.IGNORECASE)
+
+        # Japanese
+        text = re.sub(r"[のがをにへとでや]", "", text)  # Remove Japanese particles
+
+        # Chinese
+        text = re.sub(r"[的了在和与及]", "", text)  # Remove Chinese particles
+
+        # Russian (common particles and prepositions)
+        text = re.sub(r"\b(и|в|на|с|к|по|из|за|от|о|для|это)\b\s*", "", text, flags=re.IGNORECASE)
+
+        # Hindi (common particles)
+        text = re.sub(r"\b(का|की|के|को|से|में|पर|है|हैं)\b\s*", "", text)
+
+        # Remove possessive markers across languages
+        text = re.sub(r"[''']s?\b", "", text)
+
+        # Remove multiple spaces
+        text = re.sub(r'\s+', ' ', text).strip()
 
         # Split into words
         words = text.split()
 
-        # Take first max_words
+        # Take ONLY first 2 words (strictly enforce)
         if len(words) > max_words:
             words = words[:max_words]
 
@@ -186,7 +210,17 @@ class TranslationManager:
 
         # If still too long, truncate by characters
         if len(result) > max_chars:
-            result = result[:max_chars].rsplit(' ', 1)[0]  # Cut at last word boundary
+            # Try to keep 2 words if possible
+            if len(words) >= 2:
+                # Try just first 2 words
+                two_words = ' '.join(words[:2])
+                if len(two_words) <= max_chars:
+                    result = two_words
+                else:
+                    # Even 2 words is too long, take first word only
+                    result = words[0][:max_chars]
+            else:
+                result = result[:max_chars]
 
         return result.strip()
 
@@ -209,8 +243,8 @@ class TranslationManager:
                 result = translator.translate(cleaned_text)
 
                 if result and len(result) > 0:
-                    # Shorten the translation to keep it concise
-                    shortened = self._shorten_translation(result, max_words=3, max_chars=20)
+                    # Shorten the translation to keep it concise (EXACTLY 2 words, max 15 chars)
+                    shortened = self._shorten_translation(result, max_words=2, max_chars=15)
                     return shortened if shortened else result
                 else:
                     # If no result, wait and retry
