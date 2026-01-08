@@ -33,7 +33,7 @@ cd ultracreator
 ### 2. Python 패키지 설치
 
 ```bash
-pip install -r requirements.txt
+pip3 install -r requirements.txt
 ```
 
 ### 3. yt-dlp 설치
@@ -50,7 +50,7 @@ sudo apt install yt-dlp
 
 또는 pip으로 설치:
 ```bash
-pip install yt-dlp
+pip3 install yt-dlp
 ```
 
 **Windows:**
@@ -62,13 +62,13 @@ pip install yt-dlp
 ### 방법 1: 터미널에서 실행
 
 ```bash
-python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+python3 -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 또는:
 
 ```bash
-python app/main.py
+python3 app/main.py
 ```
 
 ### 방법 2: VSCode에서 실행 (추천)
@@ -167,7 +167,7 @@ brew install yt-dlp  # macOS
 
 - 네트워크 연결을 확인하세요
 - 영상이 비공개 또는 삭제되지 않았는지 확인하세요
-- yt-dlp를 최신 버전으로 업데이트하세요: `pip install -U yt-dlp`
+- yt-dlp를 최신 버전으로 업데이트하세요: `pip3 install -U yt-dlp`
 - URL 형식이 올바른지 확인하세요
 
 ### yt-dlp가 Xiaohongshu를 지원하지 않는 경우
@@ -175,7 +175,7 @@ brew install yt-dlp  # macOS
 yt-dlp는 지속적으로 업데이트되고 있습니다. 최신 버전으로 업데이트하세요:
 
 ```bash
-pip install -U yt-dlp
+pip3 install -U yt-dlp
 ```
 
 ## 라이선스
