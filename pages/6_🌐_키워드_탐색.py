@@ -2,6 +2,7 @@
 YouTube Multilingual Keyword Explorer
 """
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
 from datetime import datetime
 import sys
@@ -348,7 +349,8 @@ if search_button or 'keyword_results' in st.session_state:
         </div>
         """
 
-        st.markdown(html_table, unsafe_allow_html=True)
+        # Use components.html for better HTML rendering
+        components.html(html_table, height=650, scrolling=True)
 
         # Also prepare CSV data for download (without links)
         table_data = []
