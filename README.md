@@ -59,7 +59,7 @@ pip install yt-dlp
 
 ## 실행 방법
 
-### 서버 시작
+### 방법 1: 터미널에서 실행
 
 ```bash
 python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
@@ -68,9 +68,21 @@ python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 또는:
 
 ```bash
-cd app
-python main.py
+python app/main.py
 ```
+
+### 방법 2: VSCode에서 실행 (추천)
+
+1. **F5 키로 디버깅 실행**
+   - VSCode에서 F5를 누르면 자동으로 서버가 실행됩니다
+   - 디버깅 기능을 사용할 수 있습니다
+
+2. **Tasks로 실행**
+   - `Ctrl+Shift+P` → "Run Task" 입력
+   - "Run Server" 선택
+
+3. **단축키로 실행**
+   - `Ctrl+Shift+B` (기본 빌드 작업 실행)
 
 ### 브라우저 접속
 
