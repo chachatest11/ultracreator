@@ -499,35 +499,54 @@ st.markdown("---")
 # Key metrics
 st.subheader("📊 주요 지표")
 
-col1, col2, col3, col4, col5, col6 = st.columns(6)
+# Get channel creation date from YouTube API
+from core import youtube_api
+try:
+    channel_info = youtube_api.get_channel_info(selected_channel.youtube_channel_id)
+    channel_published_at = channel_info.get('published_at', '')
+    if channel_published_at:
+        channel_created_date = datetime.fromisoformat(channel_published_at.replace('Z', '+00:00'))
+        channel_created_str = channel_created_date.strftime('%Y-%m-%d')
+    else:
+        channel_created_str = "N/A"
+except Exception as e:
+    channel_created_str = "N/A"
+
+col1, col2, col3, col4, col5, col6, col7 = st.columns(7)
 
 with col1:
+    st.metric(
+        "채널 개설일",
+        channel_created_str
+    )
+
+with col2:
     st.metric(
         "구독자",
         f"{channel_metrics['subscriber_count']:,}",
         delta=channel_metrics['growth_30d']['subscriber_growth']
     )
 
-with col2:
+with col3:
     st.metric(
         "총 조회수",
         f"{channel_metrics['view_count']:,}",
         delta=channel_metrics['growth_30d']['view_growth']
     )
 
-with col3:
+with col4:
     st.metric(
         "영상 수",
         f"{channel_metrics['video_count']:,}"
     )
 
-with col4:
+with col5:
     st.metric(
         "평균 조회수 (10개)",
         f"{int(channel_metrics['avg_views_recent_10']):,}"
     )
 
-with col5:
+with col6:
     # Calculate average views for recent 30 videos
     avg_views_30 = metrics.calculate_avg_views_recent(selected_channel.id, count=30)
     st.metric(
@@ -535,7 +554,7 @@ with col5:
         f"{int(avg_views_30):,}"
     )
 
-with col6:
+with col7:
     # Calculate average views for recent 50 videos
     avg_views_50 = metrics.calculate_avg_views_recent(selected_channel.id, count=50)
     st.metric(

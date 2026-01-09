@@ -254,6 +254,7 @@ def get_channel_info(channel_id: str) -> Dict[str, Any]:
             "title": snippet.get("title", ""),
             "handle": snippet.get("customUrl", ""),
             "thumbnail_url": snippet.get("thumbnails", {}).get("high", {}).get("url", ""),
+            "published_at": snippet.get("publishedAt", ""),  # Channel creation date
             "subscriber_count": int(statistics.get("subscriberCount", 0)),
             "view_count": int(statistics.get("viewCount", 0)),
             "video_count": int(statistics.get("videoCount", 0)),
@@ -293,6 +294,7 @@ def get_channel_by_handle(handle: str) -> Dict[str, Any]:
             "title": snippet.get("title", ""),
             "handle": snippet.get("customUrl", ""),
             "thumbnail_url": snippet.get("thumbnails", {}).get("high", {}).get("url", ""),
+            "published_at": snippet.get("publishedAt", ""),  # Channel creation date
             "subscriber_count": int(statistics.get("subscriberCount", 0)),
             "view_count": int(statistics.get("viewCount", 0)),
             "video_count": int(statistics.get("videoCount", 0)),
