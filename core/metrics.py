@@ -26,6 +26,26 @@ def calculate_avg_views_recent(channel_id: int, count: int = 10) -> float:
     return total_views / len(videos) if videos else 0.0
 
 
+def calculate_views_48h(channel_id: int) -> int:
+    """Calculate total views from videos published in last 48 hours"""
+    videos = db.get_videos_by_channel(channel_id, limit=100)
+
+    if not videos:
+        return 0
+
+    now = datetime.now()
+    cutoff_time = now - timedelta(hours=48)
+
+    total_views = 0
+    for video in videos:
+        if video.published_at and video.published_at >= cutoff_time:
+            snapshot = db.get_latest_video_snapshot(video.id)
+            if snapshot:
+                total_views += snapshot.view_count
+
+    return total_views
+
+
 def calculate_upload_frequency(channel_id: int, count: int = 20) -> Dict[str, float]:
     """
     Calculate upload frequency metrics

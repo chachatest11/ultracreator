@@ -257,21 +257,6 @@ else:
 # Display summary stats
 st.subheader(f"📊 채널 목록 ({len(df)}개)")
 
-col1, col2, col3, col4 = st.columns(4)
-
-with col1:
-    st.metric("총 구독자", f"{df['구독자수'].sum():,}")
-
-with col2:
-    st.metric("평균 조회수", f"{int(df['평균 조회수 (10개)'].mean()):,}")
-
-with col3:
-    shorts_avg = df['Shorts 비중'].str.rstrip('%').astype(float).mean()
-    st.metric("평균 Shorts 비중", f"{shorts_avg:.1f}%")
-
-with col4:
-    st.metric("평균 업로드 주기", f"{df['업로드 주기 (일)'].mean():.1f}일")
-
 # Display table
 st.dataframe(
     df,
@@ -348,6 +333,36 @@ if len(df) > 0:
     )
 
     selected_channel_id = df[df['채널명'] == selected_channel_name]['ID'].iloc[0]
+
+    # Display selected channel details
+    st.markdown("---")
+    st.markdown(f"### 📊 선택한 채널: **{selected_channel_name}**")
+
+    # Get channel metrics including 48h views
+    channel_metrics = metrics.get_channel_metrics(selected_channel_id)
+    views_48h = metrics.calculate_views_48h(selected_channel_id)
+
+    col_info1, col_info2, col_info3 = st.columns(3)
+
+    with col_info1:
+        st.metric(
+            "구독자",
+            f"{channel_metrics['subscriber_count']:,}"
+        )
+
+    with col_info2:
+        st.metric(
+            "총 조회수",
+            f"{channel_metrics['view_count']:,}"
+        )
+
+    with col_info3:
+        st.metric(
+            "최근 48시간 조회수",
+            f"{views_48h:,}"
+        )
+
+    st.markdown("---")
 
     col1, col2, col3 = st.columns(3)
 
