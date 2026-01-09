@@ -499,7 +499,7 @@ st.markdown("---")
 # Key metrics
 st.subheader("📊 주요 지표")
 
-col1, col2, col3, col4, col5 = st.columns(5)
+col1, col2, col3, col4, col5, col6 = st.columns(6)
 
 with col1:
     st.metric(
@@ -528,6 +528,14 @@ with col4:
     )
 
 with col5:
+    # Calculate average views for recent 30 videos
+    avg_views_30 = metrics.calculate_avg_views_recent(selected_channel.id, count=30)
+    st.metric(
+        "평균 조회수 (30개)",
+        f"{int(avg_views_30):,}"
+    )
+
+with col6:
     # Calculate average views for recent 50 videos
     avg_views_50 = metrics.calculate_avg_views_recent(selected_channel.id, count=50)
     st.metric(
