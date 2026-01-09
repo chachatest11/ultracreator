@@ -545,6 +545,8 @@ with col5:
         "평균 조회수 (10개)",
         f"{int(channel_metrics['avg_views_recent_10']):,}"
     )
+    max_views_10 = metrics.calculate_max_views_recent(selected_channel.id, count=10)
+    st.caption(f"최고: {max_views_10:,}")
 
 with col6:
     # Calculate average views for recent 30 videos
@@ -553,6 +555,8 @@ with col6:
         "평균 조회수 (30개)",
         f"{int(avg_views_30):,}"
     )
+    max_views_30 = metrics.calculate_max_views_recent(selected_channel.id, count=30)
+    st.caption(f"최고: {max_views_30:,}")
 
 with col7:
     # Calculate average views for recent 50 videos
@@ -561,6 +565,8 @@ with col7:
         "평균 조회수 (50개)",
         f"{int(avg_views_50):,}"
     )
+    max_views_50 = metrics.calculate_max_views_recent(selected_channel.id, count=50)
+    st.caption(f"최고: {max_views_50:,}")
 
 # Detailed metrics
 st.markdown("---")

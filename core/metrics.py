@@ -26,6 +26,22 @@ def calculate_avg_views_recent(channel_id: int, count: int = 10) -> float:
     return total_views / len(videos) if videos else 0.0
 
 
+def calculate_max_views_recent(channel_id: int, count: int = 10) -> int:
+    """Calculate maximum views for recent N videos"""
+    videos = db.get_videos_by_channel(channel_id, limit=count)
+
+    if not videos:
+        return 0
+
+    max_views = 0
+    for video in videos:
+        snapshot = db.get_latest_video_snapshot(video.id)
+        if snapshot:
+            max_views = max(max_views, snapshot.view_count)
+
+    return max_views
+
+
 def calculate_views_48h(channel_id: int) -> int:
     """Calculate total views from videos published in last 48 hours"""
     videos = db.get_videos_by_channel(channel_id, limit=100)
