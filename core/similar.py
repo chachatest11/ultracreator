@@ -1,11 +1,15 @@
 """
 Similar Channels Discovery
 Find similar channels using multi-metric analysis (inspired by NexLev approach)
+Includes content similarity analysis via TF-IDF and cosine similarity
 """
 from typing import List, Dict, Any, Optional, Tuple
 from collections import Counter
 import re
 import math
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+import numpy as np
 
 from . import youtube_api, db, metrics
 
@@ -111,6 +115,96 @@ def get_channel_profile(channel_id: int) -> Dict[str, Any]:
     }
 
 
+def get_channel_content_text(channel_id: int, max_videos: int = 50, shorts_only: bool = True) -> str:
+    """
+    Extract text content from channel's videos (title + description + tags)
+
+    Args:
+        channel_id: Internal database channel ID
+        max_videos: Maximum number of videos to analyze
+        shorts_only: Only analyze shorts videos (≤60s)
+
+    Returns:
+        Combined text content of all videos
+    """
+    videos = db.get_videos_by_channel(channel_id, limit=max_videos)
+
+    if not videos:
+        return ""
+
+    content_parts = []
+    for video in videos:
+        # Filter for shorts only if requested
+        if shorts_only and video.duration_seconds > 60:
+            continue
+
+        # Combine title, description, and tags
+        text_parts = []
+
+        # Title (weight more - appears 3 times)
+        if video.title:
+            text_parts.append(video.title)
+            text_parts.append(video.title)
+            text_parts.append(video.title)
+
+        # Description
+        if video.description:
+            # Take first 500 chars to avoid overwhelming with long descriptions
+            desc = video.description[:500]
+            text_parts.append(desc)
+
+        # Tags
+        if video.tags:
+            tags_text = ' '.join(video.tags)
+            text_parts.append(tags_text)
+            text_parts.append(tags_text)  # Weight tags more
+
+        if text_parts:
+            content_parts.append(' '.join(text_parts))
+
+    return ' '.join(content_parts)
+
+
+def calculate_content_similarity(base_text: str, candidate_text: str) -> float:
+    """
+    Calculate content similarity between two text corpora using TF-IDF and cosine similarity
+
+    Args:
+        base_text: Text content from base channel
+        candidate_text: Text content from candidate channel
+
+    Returns:
+        Similarity score (0-100, higher = more similar)
+    """
+    if not base_text or not candidate_text:
+        return 0.0
+
+    try:
+        # Create TF-IDF vectorizer
+        # Use character n-grams to handle Korean and other languages better
+        vectorizer = TfidfVectorizer(
+            max_features=500,
+            ngram_range=(2, 4),  # Character n-grams
+            analyzer='char',
+            min_df=1,
+            lowercase=True
+        )
+
+        # Vectorize both texts
+        corpus = [base_text, candidate_text]
+        tfidf_matrix = vectorizer.fit_transform(corpus)
+
+        # Calculate cosine similarity
+        similarity = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:2])[0][0]
+
+        # Convert to 0-100 scale
+        return round(similarity * 100, 2)
+
+    except Exception as e:
+        print(f"Warning: Content similarity calculation failed: {e}")
+        return 0.0
+
+
 def extract_search_keywords(title: str, max_words: int = 5) -> str:
     """
     Extract meaningful keywords from video title for search
@@ -199,6 +293,10 @@ def find_similar_channels(
 
     # Get base channel's metrics profile for comparison
     base_profile = get_channel_profile(channel.id)
+
+    # Get base channel's content text for content similarity analysis
+    base_content_text = get_channel_content_text(channel.id, max_videos=50, shorts_only=True)
+    print(f"📝 베이스 채널 콘텐츠 길이: {len(base_content_text)} 글자")
 
     # Get videos for the channel from database using internal ID
     videos = db.get_videos_by_channel(channel.id, limit=100)
@@ -316,6 +414,30 @@ def find_similar_channels(
             else:
                 avg_upload_freq = 7
 
+            # Extract content text from candidate videos (title + description + tags)
+            # Filter for shorts only
+            candidate_content_parts = []
+            for vid in candidate_videos:
+                if vid.get('duration_seconds', 61) <= 60:  # Shorts only
+                    parts = []
+                    # Title (weighted 3x)
+                    if vid.get('title'):
+                        parts.extend([vid['title']] * 3)
+                    # Description (first 500 chars)
+                    if vid.get('description'):
+                        parts.append(vid['description'][:500])
+                    # Tags (weighted 2x)
+                    if vid.get('tags'):
+                        tags_text = ' '.join(vid['tags'])
+                        parts.extend([tags_text] * 2)
+                    if parts:
+                        candidate_content_parts.append(' '.join(parts))
+
+            candidate_content_text = ' '.join(candidate_content_parts)
+
+            # Calculate content similarity (TF-IDF + cosine similarity)
+            content_similarity = calculate_content_similarity(base_content_text, candidate_content_text)
+
             # Build candidate metrics profile
             candidate_profile = {
                 'subscriber_count': channel_info.get('subscriber_count', 0),
@@ -326,14 +448,14 @@ def find_similar_channels(
             }
 
             # Calculate similarity score using NexLev-inspired algorithm
-            similarity_score = calculate_channel_similarity_score(base_profile, candidate_profile)
+            metrics_similarity = calculate_channel_similarity_score(base_profile, candidate_profile)
 
             # Calculate keyword relevance score (based on appearance count)
             appearance_ratio = appearance_count / max(total_search_results, 1)
             keyword_relevance = min(appearance_count / len(top_videos) * 100, 100)
 
-            # Combined score: 70% similarity metrics + 30% keyword relevance
-            final_score = (similarity_score * 0.70) + (keyword_relevance * 0.30)
+            # Combined score: 40% content similarity + 35% metrics similarity + 25% keyword relevance
+            final_score = (content_similarity * 0.40) + (metrics_similarity * 0.35) + (keyword_relevance * 0.25)
 
             similar_channels.append({
                 "channel_id": ch_id,
@@ -343,7 +465,8 @@ def find_similar_channels(
                 "subscriber_count": channel_info["subscriber_count"],
                 "video_count": channel_info["video_count"],
                 "appearance_count": appearance_count,
-                "similarity_score": round(similarity_score, 1),
+                "content_similarity": round(content_similarity, 1),
+                "metrics_similarity": round(metrics_similarity, 1),
                 "keyword_relevance": round(keyword_relevance, 1),
                 "confidence_score": round(final_score, 1),
                 # Extra metrics for display

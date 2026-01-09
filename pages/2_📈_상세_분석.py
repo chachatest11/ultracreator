@@ -813,12 +813,19 @@ else:
 st.markdown("---")
 st.subheader("🔗 유사 채널 찾기")
 st.markdown("""
-**NexLev 방식의 다중 메트릭 분석**으로 유사 채널을 찾습니다:
-- 구독자 대비 조회수 비율 (30%)
-- Shorts 비중 유사도 (25%)
-- 업로드 빈도 유사도 (20%)
-- 채널 크기 근접도 (15%)
-- 참여 패턴 (10%)
+**AI 기반 콘텐츠 + 메트릭 분석**으로 유사 채널을 찾습니다:
+
+**📝 콘텐츠 유사도 (40%)**
+- 쇼츠 영상의 제목, 설명, 태그 분석
+- TF-IDF 벡터화 및 코사인 유사도 계산
+- 실제 콘텐츠 주제와 스타일 매칭
+
+**📊 메트릭 유사도 (35%)**
+- 구독자 대비 조회수 비율
+- Shorts 비중, 업로드 빈도, 채널 크기, 참여 패턴
+
+**🔍 키워드 관련도 (25%)**
+- 검색 키워드 출현 빈도
 """)
 
 # Initialize session state
@@ -920,13 +927,15 @@ if st.session_state.similar_channels_data is not None:
         with col1:
             sort_option = st.selectbox(
                 "정렬 기준",
-                ["종합 점수 순", "유사도 점수 순", "구독자 수 순", "평균 조회수 순", "출현 횟수 순"],
+                ["종합 점수 순", "콘텐츠 유사도 순", "메트릭 유사도 순", "구독자 수 순", "평균 조회수 순", "출현 횟수 순"],
                 key="similar_channels_sort"
             )
 
         # Sort channels based on selected option
-        if sort_option == "유사도 점수 순":
-            similar_channels_sorted = sorted(similar_channels, key=lambda x: x.get('similarity_score', 0), reverse=True)
+        if sort_option == "콘텐츠 유사도 순":
+            similar_channels_sorted = sorted(similar_channels, key=lambda x: x.get('content_similarity', 0), reverse=True)
+        elif sort_option == "메트릭 유사도 순":
+            similar_channels_sorted = sorted(similar_channels, key=lambda x: x.get('metrics_similarity', 0), reverse=True)
         elif sort_option == "구독자 수 순":
             similar_channels_sorted = sorted(similar_channels, key=lambda x: x['subscriber_count'], reverse=True)
         elif sort_option == "평균 조회수 순":
@@ -1001,14 +1010,18 @@ if st.session_state.similar_channels_data is not None:
                         st.metric("키워드 관련도", f"{ch.get('keyword_relevance', 0)}%")
 
                 with col3:
-                    st.markdown("**📊 점수**")
+                    st.markdown("**📊 유사도 점수**")
 
-                    # Similarity score
-                    st.markdown(f"**유사도:** {ch.get('similarity_score', 0)}%")
-                    st.progress(ch.get('similarity_score', 0) / 100)
+                    # Content similarity
+                    st.markdown(f"**📝 콘텐츠:** {ch.get('content_similarity', 0)}%")
+                    st.progress(ch.get('content_similarity', 0) / 100)
+
+                    # Metrics similarity
+                    st.markdown(f"**📊 메트릭:** {ch.get('metrics_similarity', 0)}%")
+                    st.progress(ch.get('metrics_similarity', 0) / 100)
 
                     # Final confidence score
-                    st.markdown(f"**종합:** {ch['confidence_score']}%")
+                    st.markdown(f"**⭐ 종합:** {ch['confidence_score']}%")
                     st.progress(ch['confidence_score'] / 100)
 
                     # Action buttons
@@ -1036,7 +1049,8 @@ if st.session_state.similar_channels_data is not None:
             "Shorts 비중 (%)": ch.get('shorts_ratio', 0),
             "업로드 주기 (일)": ch.get('upload_freq_days', 0),
             "출현 횟수": ch['appearance_count'],
-            "유사도 점수 (%)": ch.get('similarity_score', 0),
+            "콘텐츠 유사도 (%)": ch.get('content_similarity', 0),
+            "메트릭 유사도 (%)": ch.get('metrics_similarity', 0),
             "키워드 관련도 (%)": ch.get('keyword_relevance', 0),
             "종합 점수 (%)": ch['confidence_score']
         } for i, ch in enumerate(similar_channels_sorted)]
