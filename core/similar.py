@@ -389,7 +389,20 @@ def find_similar_channels(
             channel_info = youtube_api.get_channel_info(ch_id)
 
             # Get recent videos to calculate metrics
-            candidate_videos = youtube_api.get_videos(ch_id, max_results=50)
+            # Use uploads playlist to get recent videos
+            uploads_playlist_id = channel_info.get('uploads_playlist_id', '')
+            if not uploads_playlist_id:
+                print(f"Warning: No uploads playlist for channel {ch_id}")
+                continue
+
+            # Get video IDs from uploads playlist
+            video_ids = youtube_api.get_playlist_videos(uploads_playlist_id, max_results=50)
+            if not video_ids:
+                print(f"Warning: No videos found for channel {ch_id}")
+                continue
+
+            # Get detailed video info
+            candidate_videos = youtube_api.get_videos_info(video_ids)
 
             # Calculate candidate channel metrics
             shorts_count = sum(1 for v in candidate_videos if v.get('duration_seconds', 61) <= 60)
