@@ -812,7 +812,14 @@ else:
 # Similar Channels
 st.markdown("---")
 st.subheader("🔗 유사 채널 찾기")
-st.markdown("이 채널의 인기 영상 제목에서 키워드를 추출하여 YouTube 검색 결과에 자주 나타나는 유사한 채널을 찾습니다.")
+st.markdown("""
+**NexLev 방식의 다중 메트릭 분석**으로 유사 채널을 찾습니다:
+- 구독자 대비 조회수 비율 (30%)
+- Shorts 비중 유사도 (25%)
+- 업로드 빈도 유사도 (20%)
+- 채널 크기 근접도 (15%)
+- 참여 패턴 (10%)
+""")
 
 # Initialize session state
 if 'similar_channels_data' not in st.session_state:
@@ -913,18 +920,20 @@ if st.session_state.similar_channels_data is not None:
         with col1:
             sort_option = st.selectbox(
                 "정렬 기준",
-                ["신뢰도 순", "구독자 수 순", "영상 수 순", "출현 횟수 순"],
+                ["종합 점수 순", "유사도 점수 순", "구독자 수 순", "평균 조회수 순", "출현 횟수 순"],
                 key="similar_channels_sort"
             )
 
         # Sort channels based on selected option
-        if sort_option == "구독자 수 순":
+        if sort_option == "유사도 점수 순":
+            similar_channels_sorted = sorted(similar_channels, key=lambda x: x.get('similarity_score', 0), reverse=True)
+        elif sort_option == "구독자 수 순":
             similar_channels_sorted = sorted(similar_channels, key=lambda x: x['subscriber_count'], reverse=True)
-        elif sort_option == "영상 수 순":
-            similar_channels_sorted = sorted(similar_channels, key=lambda x: x['video_count'], reverse=True)
+        elif sort_option == "평균 조회수 순":
+            similar_channels_sorted = sorted(similar_channels, key=lambda x: x.get('avg_views', 0), reverse=True)
         elif sort_option == "출현 횟수 순":
             similar_channels_sorted = sorted(similar_channels, key=lambda x: x['appearance_count'], reverse=True)
-        else:  # 신뢰도 순 (기본)
+        else:  # 종합 점수 순 (기본)
             similar_channels_sorted = sorted(similar_channels, key=lambda x: x['confidence_score'], reverse=True)
 
         # Display similar channels
@@ -973,19 +982,34 @@ if st.session_state.similar_channels_data is not None:
                                 st.caption("✓")
                     st.caption(f"**채널 ID:** `{ch['channel_id']}`")
 
-                    # Display stats
+                    # Display stats - Row 1
                     col_a, col_b, col_c = st.columns(3)
                     with col_a:
                         st.metric("구독자", f"{ch['subscriber_count']:,}")
                     with col_b:
-                        st.metric("영상 수", f"{ch['video_count']:,}")
+                        st.metric("평균 조회수", f"{ch.get('avg_views', 0):,}")
                     with col_c:
+                        st.metric("Shorts 비중", f"{ch.get('shorts_ratio', 0)}%")
+
+                    # Display stats - Row 2
+                    col_d, col_e, col_f = st.columns(3)
+                    with col_d:
+                        st.metric("업로드 주기", f"{ch.get('upload_freq_days', 0)}일")
+                    with col_e:
                         st.metric("출현 횟수", f"{ch['appearance_count']}회")
+                    with col_f:
+                        st.metric("키워드 관련도", f"{ch.get('keyword_relevance', 0)}%")
 
                 with col3:
-                    st.markdown("**유사도**")
+                    st.markdown("**📊 점수**")
+
+                    # Similarity score
+                    st.markdown(f"**유사도:** {ch.get('similarity_score', 0)}%")
+                    st.progress(ch.get('similarity_score', 0) / 100)
+
+                    # Final confidence score
+                    st.markdown(f"**종합:** {ch['confidence_score']}%")
                     st.progress(ch['confidence_score'] / 100)
-                    st.caption(f"{ch['confidence_score']}% 신뢰도")
 
                     # Action buttons
                     if st.button("📊 채널 분석", key=f"analyze_{ch['channel_id']}", width="stretch"):
@@ -1008,9 +1032,13 @@ if st.session_state.similar_channels_data is not None:
             "핸들": ch.get('handle', ''),
             "채널 ID": ch['channel_id'],
             "구독자": ch['subscriber_count'],
-            "영상 수": ch['video_count'],
+            "평균 조회수": ch.get('avg_views', 0),
+            "Shorts 비중 (%)": ch.get('shorts_ratio', 0),
+            "업로드 주기 (일)": ch.get('upload_freq_days', 0),
             "출현 횟수": ch['appearance_count'],
-            "신뢰도 (%)": ch['confidence_score']
+            "유사도 점수 (%)": ch.get('similarity_score', 0),
+            "키워드 관련도 (%)": ch.get('keyword_relevance', 0),
+            "종합 점수 (%)": ch['confidence_score']
         } for i, ch in enumerate(similar_channels_sorted)]
 
         df_export = pd.DataFrame(export_data)

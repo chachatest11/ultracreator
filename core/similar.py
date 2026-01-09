@@ -1,12 +1,114 @@
 """
 Similar Channels Discovery
-Find similar channels using keyword-based video search
+Find similar channels using multi-metric analysis (inspired by NexLev approach)
 """
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 from collections import Counter
 import re
+import math
 
-from . import youtube_api, db
+from . import youtube_api, db, metrics
+
+
+def calculate_channel_similarity_score(
+    base_metrics: Dict[str, Any],
+    candidate_metrics: Dict[str, Any]
+) -> float:
+    """
+    Calculate similarity score between two channels based on multiple metrics
+
+    Inspired by NexLev's approach:
+    - Subscriber/view ratio similarity
+    - Upload frequency similarity
+    - Shorts ratio similarity
+    - Channel size proximity
+
+    Returns:
+        Similarity score (0-100, higher = more similar)
+    """
+    score = 0.0
+    weights = {
+        'subscriber_view_ratio': 0.30,  # Most important: content performance pattern
+        'shorts_ratio': 0.25,            # Content type similarity
+        'upload_frequency': 0.20,        # Upload pattern similarity
+        'channel_size': 0.15,            # Similar audience size
+        'engagement_pattern': 0.10       # Engagement similarity
+    }
+
+    # 1. Subscriber/View Ratio Similarity (NexLev's key metric)
+    base_sub = base_metrics.get('subscriber_count', 1)
+    base_views = base_metrics.get('avg_views_recent_10', 1)
+    cand_sub = candidate_metrics.get('subscriber_count', 1)
+    cand_views = candidate_metrics.get('avg_views_recent_10', 1)
+
+    base_ratio = base_views / max(base_sub, 1) if base_sub > 0 else 0
+    cand_ratio = cand_views / max(cand_sub, 1) if cand_sub > 0 else 0
+
+    if base_ratio > 0 and cand_ratio > 0:
+        ratio_diff = abs(math.log10(base_ratio + 0.0001) - math.log10(cand_ratio + 0.0001))
+        ratio_score = max(0, 100 - (ratio_diff * 30))  # Penalize large differences
+        score += ratio_score * weights['subscriber_view_ratio']
+
+    # 2. Shorts Ratio Similarity
+    base_shorts = base_metrics.get('shorts_metrics', {}).get('shorts_ratio', 0)
+    cand_shorts = candidate_metrics.get('shorts_ratio', 0)
+
+    shorts_diff = abs(base_shorts - cand_shorts)
+    shorts_score = max(0, 100 - (shorts_diff * 100))  # 0-1 scale
+    score += shorts_score * weights['shorts_ratio']
+
+    # 3. Upload Frequency Similarity
+    base_freq = base_metrics.get('upload_frequency', {}).get('average_days', 7)
+    cand_freq = candidate_metrics.get('upload_frequency', 7)
+
+    # Both upload frequently (< 7 days) or both infrequently
+    if base_freq > 0 and cand_freq > 0:
+        freq_ratio = min(base_freq, cand_freq) / max(base_freq, cand_freq)
+        freq_score = freq_ratio * 100
+        score += freq_score * weights['upload_frequency']
+
+    # 4. Channel Size Proximity
+    # Prefer channels within 0.1x - 10x size range
+    if base_sub > 0 and cand_sub > 0:
+        size_ratio = cand_sub / base_sub
+        if 0.1 <= size_ratio <= 10:
+            # Closer in size = higher score
+            size_score = 100 - (abs(math.log10(size_ratio)) * 30)
+            score += max(0, size_score) * weights['channel_size']
+
+    # 5. Engagement Pattern (view variance type)
+    base_variance = base_metrics.get('view_variance', {}).get('type', '')
+    cand_variance = candidate_metrics.get('variance_type', '')
+
+    if base_variance and cand_variance:
+        if base_variance == cand_variance:
+            score += 100 * weights['engagement_pattern']
+        else:
+            score += 50 * weights['engagement_pattern']
+
+    return round(score, 2)
+
+
+def get_channel_profile(channel_id: int) -> Dict[str, Any]:
+    """
+    Get comprehensive channel profile for similarity matching
+
+    Args:
+        channel_id: Internal database channel ID
+
+    Returns:
+        Dict with channel metrics profile
+    """
+    channel_metrics = metrics.get_channel_metrics(channel_id)
+
+    return {
+        'subscriber_count': channel_metrics.get('subscriber_count', 0),
+        'avg_views_recent_10': channel_metrics.get('avg_views_recent_10', 0),
+        'shorts_metrics': channel_metrics.get('shorts_metrics', {}),
+        'upload_frequency': channel_metrics.get('upload_frequency', {}),
+        'view_variance': channel_metrics.get('view_variance', {}),
+        'top5_concentration': channel_metrics.get('top5_concentration', 0)
+    }
 
 
 def extract_search_keywords(title: str, max_words: int = 5) -> str:
@@ -56,7 +158,13 @@ def find_similar_channels(
     min_appearances: int = 2
 ) -> Dict[str, Any]:
     """
-    Find similar channels by analyzing related videos
+    Find similar channels using NexLev-inspired multi-metric analysis
+
+    Algorithm:
+    1. Analyze base channel's metrics profile (subscriber/view ratio, upload frequency, etc.)
+    2. Discover candidate channels via keyword-based video search
+    3. Calculate similarity scores using multiple metrics
+    4. Rank by similarity score instead of simple appearance count
 
     Args:
         channel_id: Target YouTube channel ID to find similar channels for
@@ -66,7 +174,7 @@ def find_similar_channels(
 
     Returns:
         Dict with:
-        - channels: List of similar channels with metadata
+        - channels: List of similar channels ranked by similarity score
         - debug_info: Debug information about the search process
     """
     debug_info = {
@@ -88,6 +196,9 @@ def find_similar_channels(
         return {"channels": [], "debug_info": debug_info}
 
     debug_info["channel_found"] = True
+
+    # Get base channel's metrics profile for comparison
+    base_profile = get_channel_profile(channel.id)
 
     # Get videos for the channel from database using internal ID
     videos = db.get_videos_by_channel(channel.id, limit=100)
@@ -168,23 +279,61 @@ def find_similar_channels(
         debug_info["errors"].append(f"검색 결과에서 다른 채널을 찾지 못했습니다. (분석한 영상: {total_search_results}개)")
         return {"channels": [], "debug_info": debug_info}
 
-    # Filter channels by minimum appearances
+    # Analyze candidates and calculate similarity scores (NexLev approach)
     similar_channels = []
 
-    for ch_id, count in channel_counter.most_common():
-        if count < min_appearances:
+    for ch_id, appearance_count in channel_counter.most_common():
+        if appearance_count < min_appearances:
             break
 
         try:
-            # Get channel info
+            # Get channel info from YouTube API
             channel_info = youtube_api.get_channel_info(ch_id)
 
-            # Calculate confidence score (0-100)
-            # Based on: appearance frequency and proportion of total search results
-            appearance_ratio = count / max(total_search_results, 1)
-            frequency_score = min(count / len(top_videos) * 100, 100)
-            ratio_score = appearance_ratio * 100
-            confidence_score = (frequency_score * 0.6 + ratio_score * 0.4)
+            # Get recent videos to calculate metrics
+            candidate_videos = youtube_api.get_videos(ch_id, max_results=50)
+
+            # Calculate candidate channel metrics
+            shorts_count = sum(1 for v in candidate_videos if v.get('duration_seconds', 61) <= 60)
+            shorts_ratio = shorts_count / len(candidate_videos) if candidate_videos else 0
+
+            # Calculate average views for recent videos
+            recent_views = []
+            for video in candidate_videos[:10]:
+                view_count = video.get('view_count', 0)
+                if view_count:
+                    recent_views.append(view_count)
+            avg_views = sum(recent_views) / len(recent_views) if recent_views else 0
+
+            # Calculate upload frequency
+            upload_dates = [v.get('published_at') for v in candidate_videos if v.get('published_at')]
+            if len(upload_dates) >= 2:
+                from datetime import datetime
+                dates = [datetime.fromisoformat(d.replace('Z', '+00:00')) for d in upload_dates[:20]]
+                dates.sort(reverse=True)
+                intervals = [(dates[i] - dates[i+1]).total_seconds() / 86400 for i in range(len(dates)-1)]
+                avg_upload_freq = sum(intervals) / len(intervals) if intervals else 7
+            else:
+                avg_upload_freq = 7
+
+            # Build candidate metrics profile
+            candidate_profile = {
+                'subscriber_count': channel_info.get('subscriber_count', 0),
+                'avg_views_recent_10': avg_views,
+                'shorts_ratio': shorts_ratio,
+                'upload_frequency': avg_upload_freq,
+                'variance_type': '안정형' if len(recent_views) > 1 else 'unknown'
+            }
+
+            # Calculate similarity score using NexLev-inspired algorithm
+            similarity_score = calculate_channel_similarity_score(base_profile, candidate_profile)
+
+            # Calculate keyword relevance score (based on appearance count)
+            appearance_ratio = appearance_count / max(total_search_results, 1)
+            keyword_relevance = min(appearance_count / len(top_videos) * 100, 100)
+
+            # Combined score: 70% similarity metrics + 30% keyword relevance
+            final_score = (similarity_score * 0.70) + (keyword_relevance * 0.30)
 
             similar_channels.append({
                 "channel_id": ch_id,
@@ -193,8 +342,14 @@ def find_similar_channels(
                 "thumbnail_url": channel_info["thumbnail_url"],
                 "subscriber_count": channel_info["subscriber_count"],
                 "video_count": channel_info["video_count"],
-                "appearance_count": count,
-                "confidence_score": round(confidence_score, 1)
+                "appearance_count": appearance_count,
+                "similarity_score": round(similarity_score, 1),
+                "keyword_relevance": round(keyword_relevance, 1),
+                "confidence_score": round(final_score, 1),
+                # Extra metrics for display
+                "avg_views": int(avg_views),
+                "shorts_ratio": round(shorts_ratio * 100, 1),
+                "upload_freq_days": round(avg_upload_freq, 1)
             })
 
         except Exception as e:
@@ -203,6 +358,9 @@ def find_similar_channels(
             debug_info["errors"].append(error_msg)
             print(f"Warning: {error_msg}")
             continue
+
+    # Sort by confidence score (similarity + keyword relevance)
+    similar_channels.sort(key=lambda x: x['confidence_score'], reverse=True)
 
     debug_info["channels_after_filter"] = len(similar_channels)
 
