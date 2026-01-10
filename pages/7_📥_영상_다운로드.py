@@ -13,6 +13,10 @@ st.set_page_config(page_title="📥 영상 다운로드", page_icon="📥", layo
 st.title("📥 영상 다운로드")
 st.markdown("YouTube, TikTok, Instagram에서 동영상을 다운로드합니다.")
 
+# Initialize session state
+if 'applied_url' not in st.session_state:
+    st.session_state.applied_url = None
+
 # Platform detection function
 def detect_platform(url: str) -> str:
     """Detect platform from URL"""
@@ -30,15 +34,25 @@ def detect_platform(url: str) -> str:
 
 # URL input
 st.subheader("🔗 동영상 URL")
-video_url = st.text_input(
-    "URL을 입력하세요",
-    placeholder="https://www.youtube.com/watch?v=...",
-    help="YouTube, TikTok, Instagram 동영상 URL을 입력하세요"
-)
+col1, col2 = st.columns([5, 1])
+with col1:
+    video_url = st.text_input(
+        "URL을 입력하세요",
+        placeholder="https://www.youtube.com/watch?v=...",
+        help="YouTube, TikTok, Instagram 동영상 URL을 입력하세요",
+        label_visibility="collapsed"
+    )
+with col2:
+    apply_button = st.button("✅ 적용", use_container_width=True, type="primary")
 
-if video_url:
+# Update session state when apply button is clicked
+if apply_button and video_url:
+    st.session_state.applied_url = video_url
+
+# Process if URL is applied
+if st.session_state.applied_url:
     # Detect platform
-    platform = detect_platform(video_url)
+    platform = detect_platform(st.session_state.applied_url)
 
     if platform != 'Unknown':
         st.success(f"✅ 감지된 플랫폼: **{platform}**")
@@ -53,6 +67,7 @@ if video_url:
     quality_option = st.radio(
         "원하는 화질을 선택하세요",
         options=["720p", "1080p", "최고화질"],
+        index=2,  # Default to 최고화질
         horizontal=True,
         help="선택한 화질 이상으로 다운로드됩니다"
     )
@@ -120,7 +135,7 @@ if video_url:
 
                     # Download video
                     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                        info = ydl.extract_info(video_url, download=True)
+                        info = ydl.extract_info(st.session_state.applied_url, download=True)
                         video_title = info.get('title', 'video')
 
                         # Find downloaded file
@@ -161,7 +176,7 @@ if video_url:
 
                             # Video preview (smaller size)
                             st.markdown("### 🎬 미리보기")
-                            col1, col2, col3 = st.columns([7, 3, 7])
+                            col1, col2, col3 = st.columns([6, 4, 6])
                             with col2:
                                 st.video(video_bytes)
                         else:
@@ -171,9 +186,9 @@ if video_url:
                 st.error(f"❌ 다운로드 중 오류가 발생했습니다: {str(e)}")
                 st.info("💡 팁: URL이 올바른지 확인하고, 해당 동영상이 공개 상태인지 확인해주세요.")
 
-else:
-    # Show instructions
-    st.info("📌 위에 동영상 URL을 입력하여 시작하세요")
+# Show instructions when no URL is applied
+if not st.session_state.applied_url:
+    st.info("📌 위에 동영상 URL을 입력하고 '✅ 적용' 버튼을 클릭하세요")
 
     st.markdown("---")
     st.markdown("### 📖 사용 방법")
