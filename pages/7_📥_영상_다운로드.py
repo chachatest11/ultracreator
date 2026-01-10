@@ -1,5 +1,5 @@
 """
-Video Downloader - Download videos from YouTube, TikTok, Instagram, Baidu
+Video Downloader - Download videos from YouTube, TikTok, Instagram
 """
 import streamlit as st
 import yt_dlp
@@ -11,7 +11,7 @@ from urllib.parse import urlparse
 st.set_page_config(page_title="📥 영상 다운로드", page_icon="📥", layout="wide")
 
 st.title("📥 영상 다운로드")
-st.markdown("YouTube, TikTok, Instagram, Baidu에서 동영상을 다운로드합니다.")
+st.markdown("YouTube, TikTok, Instagram에서 동영상을 다운로드합니다.")
 
 # Platform detection function
 def detect_platform(url: str) -> str:
@@ -24,8 +24,6 @@ def detect_platform(url: str) -> str:
         return 'TikTok'
     elif 'instagram.com' in url_lower:
         return 'Instagram'
-    elif 'baidu.com' in url_lower:
-        return 'Baidu'
     else:
         return 'Unknown'
 
@@ -35,7 +33,7 @@ st.subheader("🔗 동영상 URL")
 video_url = st.text_input(
     "URL을 입력하세요",
     placeholder="https://www.youtube.com/watch?v=...",
-    help="YouTube, TikTok, Instagram, Baidu 동영상 URL을 입력하세요"
+    help="YouTube, TikTok, Instagram 동영상 URL을 입력하세요"
 )
 
 if video_url:
@@ -45,7 +43,7 @@ if video_url:
     if platform != 'Unknown':
         st.success(f"✅ 감지된 플랫폼: **{platform}**")
     else:
-        st.warning("⚠️ 지원하지 않는 플랫폼입니다. YouTube, TikTok, Instagram, Baidu만 지원됩니다.")
+        st.warning("⚠️ 지원하지 않는 플랫폼입니다. YouTube, TikTok, Instagram만 지원됩니다.")
         st.stop()
 
     st.markdown("---")
@@ -161,9 +159,11 @@ if video_url:
                                 use_container_width=True
                             )
 
-                            # Video preview
+                            # Video preview (smaller size)
                             st.markdown("### 🎬 미리보기")
-                            st.video(video_bytes)
+                            col1, col2, col3 = st.columns([1, 2, 1])
+                            with col2:
+                                st.video(video_bytes)
                         else:
                             st.error("❌ 다운로드한 파일을 찾을 수 없습니다.")
 
@@ -186,7 +186,6 @@ else:
         - 🎥 YouTube (youtube.com, youtu.be)
         - 🎵 TikTok (tiktok.com)
         - 📸 Instagram (instagram.com)
-        - 🔍 Baidu (baidu.com)
         """)
 
     with col2:
