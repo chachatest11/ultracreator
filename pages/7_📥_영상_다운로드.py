@@ -45,8 +45,11 @@ with col1:
 with col2:
     apply_button = st.button("✅ 적용", use_container_width=True, type="primary")
 
-# Update session state when apply button is clicked
+# Update session state when apply button is clicked OR when URL is entered (Enter key)
 if apply_button and video_url:
+    st.session_state.applied_url = video_url
+elif video_url and video_url != st.session_state.applied_url:
+    # Auto-apply when Enter is pressed
     st.session_state.applied_url = video_url
 
 # Process if URL is applied
