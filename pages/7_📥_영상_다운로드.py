@@ -161,7 +161,7 @@ if video_url:
 
                             # Video preview (smaller size)
                             st.markdown("### 🎬 미리보기")
-                            col1, col2, col3 = st.columns([1, 2, 1])
+                            col1, col2, col3 = st.columns([7, 3, 7])
                             with col2:
                                 st.video(video_bytes)
                         else:
