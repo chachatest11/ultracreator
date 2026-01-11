@@ -546,7 +546,7 @@ with col5:
         f"{int(channel_metrics['avg_views_recent_10']):,}"
     )
     max_views_10 = metrics.calculate_max_views_recent(selected_channel.id, count=10)
-    st.markdown(f'<p style="font-size:10pt; color:gray; margin-top:-10px;">최고: {max_views_10:,}</p>', unsafe_allow_html=True)
+    st.markdown(f'<p style="font-size:20pt; color:gray; margin-top:-10px;">최고: {max_views_10:,}</p>', unsafe_allow_html=True)
 
 with col6:
     # Calculate average views for recent 30 videos
@@ -556,7 +556,7 @@ with col6:
         f"{int(avg_views_30):,}"
     )
     max_views_30 = metrics.calculate_max_views_recent(selected_channel.id, count=30)
-    st.markdown(f'<p style="font-size:10pt; color:gray; margin-top:-10px;">최고: {max_views_30:,}</p>', unsafe_allow_html=True)
+    st.markdown(f'<p style="font-size:20pt; color:gray; margin-top:-10px;">최고: {max_views_30:,}</p>', unsafe_allow_html=True)
 
 with col7:
     # Calculate average views for recent 50 videos
@@ -566,7 +566,7 @@ with col7:
         f"{int(avg_views_50):,}"
     )
     max_views_50 = metrics.calculate_max_views_recent(selected_channel.id, count=50)
-    st.markdown(f'<p style="font-size:10pt; color:gray; margin-top:-10px;">최고: {max_views_50:,}</p>', unsafe_allow_html=True)
+    st.markdown(f'<p style="font-size:20pt; color:gray; margin-top:-10px;">최고: {max_views_50:,}</p>', unsafe_allow_html=True)
 
 # Detailed metrics
 st.markdown("---")
