@@ -29,7 +29,23 @@ def show_video_player(video_id, video_title):
 
     # YouTube video player
     video_url = f"https://www.youtube.com/watch?v={video_id}"
-    st.video(video_url)
+
+    # Add YouTube direct link button at the top
+    st.link_button(
+        "🎬 YouTube에서 보기 (재생 안 될 경우)",
+        video_url,
+        use_container_width=True,
+        type="secondary"
+    )
+
+    st.markdown("---")
+
+    # Try to embed video
+    try:
+        st.video(video_url)
+    except Exception as e:
+        st.error("⚠️ 동영상을 재생할 수 없습니다. 위의 'YouTube에서 보기' 버튼을 클릭하세요.")
+        st.caption(f"일부 동영상은 외부 사이트에서 재생이 제한되어 있습니다.")
 
     # Download options
     st.markdown("---")
