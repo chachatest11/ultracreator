@@ -19,6 +19,55 @@ if 'confirm_delete_channel_id' not in st.session_state:
 
 # Sidebar - Add Channel
 with st.sidebar:
+    st.header("🏷️ 그룹 관리")
+    st.markdown("**먼저 그룹을 생성하세요**")
+
+    # Create new group
+    with st.form(key="create_group_form"):
+        new_group_name = st.text_input("새 그룹 이름", placeholder="예: 쇼츠 채널")
+        create_group_button = st.form_submit_button("✨ 그룹 생성", use_container_width=True, type="primary")
+
+    if create_group_button:
+        if new_group_name:
+            try:
+                db.create_watchlist(new_group_name)
+                st.success(f"✓ '{new_group_name}' 그룹 생성됨!")
+                st.session_state.refresh_trigger += 1
+                st.rerun()
+            except Exception as e:
+                st.error(f"✗ 그룹 생성 실패: {e}")
+        else:
+            st.warning("그룹 이름을 입력하세요.")
+
+    # Show existing groups
+    all_watchlists = db.get_all_watchlists()
+    if all_watchlists:
+        st.markdown("**기존 그룹:**")
+        for wl in all_watchlists:
+            channel_count = len(db.get_watchlist_channels(wl.id))
+            st.caption(f"📁 {wl.name} ({channel_count}개)")
+
+        st.markdown("---")
+
+        # Delete group
+        st.caption("그룹 삭제")
+        delete_group = st.selectbox(
+            "삭제할 그룹",
+            [wl.name for wl in all_watchlists],
+            key="delete_group_select",
+            label_visibility="collapsed"
+        )
+        if st.button("🗑️ 그룹 삭제", width="stretch", type="secondary"):
+            delete_wl = next(wl for wl in all_watchlists if wl.name == delete_group)
+            db.delete_watchlist(delete_wl.id)
+            st.success(f"✓ '{delete_group}' 그룹 삭제됨!")
+            st.session_state.refresh_trigger += 1
+            st.rerun()
+    else:
+        st.info("💡 아직 그룹이 없습니다")
+
+    st.markdown("---")
+
     st.header("➕ 채널 추가")
 
     # Use form to enable Enter key submission
@@ -185,45 +234,6 @@ with st.sidebar:
 
             except Exception as e:
                 st.error(f"CSV 파일 처리 중 오류: {str(e)}")
-
-    st.markdown("---")
-
-    # Group management
-    st.header("🏷️ 그룹 관리")
-
-    # Create new group
-    with st.form(key="create_group_form"):
-        new_group_name = st.text_input("새 그룹 이름")
-        create_group_button = st.form_submit_button("그룹 생성", use_container_width=True)
-
-    if create_group_button:
-        if new_group_name:
-            try:
-                db.create_watchlist(new_group_name)
-                st.success(f"✓ '{new_group_name}' 그룹 생성됨!")
-                st.session_state.refresh_trigger += 1
-                st.rerun()
-            except Exception as e:
-                st.error(f"✗ 그룹 생성 실패: {e}")
-        else:
-            st.warning("그룹 이름을 입력하세요.")
-
-    # Delete group
-    all_watchlists = db.get_all_watchlists()
-    if all_watchlists:
-        st.caption("그룹 삭제")
-        delete_group = st.selectbox(
-            "삭제할 그룹",
-            [wl.name for wl in all_watchlists],
-            key="delete_group_select",
-            label_visibility="collapsed"
-        )
-        if st.button("그룹 삭제", width="stretch", type="secondary"):
-            delete_wl = next(wl for wl in all_watchlists if wl.name == delete_group)
-            db.delete_watchlist(delete_wl.id)
-            st.success(f"✓ '{delete_group}' 그룹 삭제됨!")
-            st.session_state.refresh_trigger += 1
-            st.rerun()
 
     st.markdown("---")
 
@@ -400,6 +410,75 @@ st.dataframe(
         "30일 성장": st.column_config.NumberColumn(format="%+d")
     }
 )
+
+# Group assignment - Quick access
+with st.expander("🏷️ 그룹 할당", expanded=False):
+    st.caption("채널별로 그룹을 선택하여 할당할 수 있습니다.")
+
+    # Get all groups
+    all_groups = db.get_all_watchlists()
+
+    if not all_groups:
+        st.warning("먼저 사이드바에서 그룹을 생성하세요.")
+    else:
+        # Display channels in rows
+        for idx in range(len(df)):
+            channel_id = df.iloc[idx]['ID']
+            channel_name = df.iloc[idx]['채널명']
+            current_groups_str = df.iloc[idx]['그룹']
+
+            col1, col2, col3 = st.columns([3, 3, 1])
+
+            with col1:
+                st.markdown(f"**{channel_name}**")
+                if current_groups_str != "-":
+                    st.caption(f"현재 그룹: {current_groups_str}")
+                else:
+                    st.caption("그룹 없음")
+
+            with col2:
+                # Get available groups for this channel
+                current_groups = []
+                for wl in all_groups:
+                    wl_channels = db.get_watchlist_channels(wl.id)
+                    if any(wl_ch.id == channel_id for wl_ch in wl_channels):
+                        current_groups.append(wl.name)
+
+                available_groups = [wl.name for wl in all_groups if wl.name not in current_groups]
+
+                if available_groups:
+                    selected_group = st.selectbox(
+                        "그룹 선택",
+                        ["선택하세요..."] + available_groups,
+                        key=f"group_select_{channel_id}",
+                        label_visibility="collapsed"
+                    )
+                else:
+                    st.info("모든 그룹에 추가됨")
+                    selected_group = None
+
+            with col3:
+                if available_groups and selected_group and selected_group != "선택하세요...":
+                    if st.button("➕", key=f"add_group_{channel_id}", help="그룹에 추가"):
+                        group_wl = next(wl for wl in all_groups if wl.name == selected_group)
+                        db.add_channel_to_watchlist(group_wl.id, channel_id)
+                        st.success(f"✓ '{channel_name}'을(를) '{selected_group}' 그룹에 추가!")
+                        st.session_state.refresh_trigger += 1
+                        st.rerun()
+
+            # Show remove buttons for current groups
+            if current_groups:
+                with col1:
+                    st.caption("그룹에서 제거:")
+                    for group_name in current_groups:
+                        if st.button(f"🗑️ {group_name}", key=f"remove_{channel_id}_{group_name}", type="secondary"):
+                            group_wl = next(wl for wl in all_groups if wl.name == group_name)
+                            db.remove_channel_from_watchlist(group_wl.id, channel_id)
+                            st.success(f"✓ '{channel_name}'을(를) '{group_name}' 그룹에서 제거!")
+                            st.session_state.refresh_trigger += 1
+                            st.rerun()
+
+            st.markdown("---")
 
 # Quick delete - Channel list with delete buttons
 with st.expander("🗑️ 채널 삭제", expanded=False):
