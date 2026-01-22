@@ -23,33 +23,89 @@ with st.sidebar:
 
     # Use form to enable Enter key submission
     with st.form(key="add_channel_form"):
-        channel_input = st.text_input(
-            "채널 ID, 핸들, 또는 URL",
-            placeholder="UC..., @username, https://youtube.com/@..."
+        channel_input = st.text_area(
+            "채널 ID, 핸들, 또는 URL (여러 개 입력 시 줄바꿈)",
+            placeholder="UC..., @username, https://youtube.com/@...\n한 줄에 하나씩 입력",
+            height=100
         )
 
         submit_button = st.form_submit_button("채널 추가", type="primary", use_container_width=True)
 
     if submit_button:
         if channel_input:
-            with st.spinner("채널 데이터를 수집하는 중..."):
+            # Split by newlines and filter out empty lines
+            channel_inputs = [line.strip() for line in channel_input.split('\n') if line.strip()]
+
+            if len(channel_inputs) == 1:
+                # Single channel - simple process
+                with st.spinner("채널 데이터를 수집하는 중..."):
+                    progress_placeholder = st.empty()
+
+                    def show_progress(msg):
+                        progress_placeholder.info(msg)
+
+                    result = jobs.fetch_channel_data(
+                        channel_inputs[0],
+                        force_refresh=False,
+                        progress_callback=show_progress
+                    )
+
+                    if result:
+                        st.success("✓ 채널이 추가되었습니다!")
+                        st.session_state.refresh_trigger += 1
+                        st.rerun()
+                    else:
+                        st.error("✗ 채널 추가에 실패했습니다. 입력값을 확인해주세요.")
+            else:
+                # Multiple channels - batch process
                 progress_placeholder = st.empty()
+                status_placeholder = st.empty()
 
-                def show_progress(msg):
-                    progress_placeholder.info(msg)
+                success_count = 0
+                failed_count = 0
+                failed_channels = []
 
-                result = jobs.fetch_channel_data(
-                    channel_input,
-                    force_refresh=False,
-                    progress_callback=show_progress
-                )
+                for idx, single_input in enumerate(channel_inputs, 1):
+                    progress_placeholder.progress(idx / len(channel_inputs),
+                        text=f"진행 중: {idx}/{len(channel_inputs)} - {single_input[:30]}...")
 
-                if result:
-                    st.success("✓ 채널이 추가되었습니다!")
-                    st.session_state.refresh_trigger += 1
-                    st.rerun()
-                else:
-                    st.error("✗ 채널 추가에 실패했습니다. 입력값을 확인해주세요.")
+                    try:
+                        result = jobs.fetch_channel_data(
+                            single_input,
+                            force_refresh=False,
+                            progress_callback=lambda msg: None
+                        )
+
+                        if result:
+                            success_count += 1
+                            status_placeholder.success(
+                                f"✓ {success_count}개 성공, {failed_count}개 실패"
+                            )
+                        else:
+                            failed_count += 1
+                            failed_channels.append(single_input)
+                            status_placeholder.warning(
+                                f"✓ {success_count}개 성공, {failed_count}개 실패"
+                            )
+                    except Exception as e:
+                        failed_count += 1
+                        failed_channels.append(f"{single_input} (오류: {str(e)})")
+                        status_placeholder.warning(
+                            f"✓ {success_count}개 성공, {failed_count}개 실패"
+                        )
+
+                progress_placeholder.empty()
+
+                # Final result
+                st.success(f"🎉 완료! {success_count}개 채널 추가 성공, {failed_count}개 실패")
+
+                if failed_channels:
+                    with st.expander(f"❌ 실패한 채널 ({failed_count}개)"):
+                        for failed in failed_channels:
+                            st.text(failed)
+
+                st.session_state.refresh_trigger += 1
+                st.rerun()
         else:
             st.warning("채널 정보를 입력해주세요.")
 
