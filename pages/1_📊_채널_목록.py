@@ -346,13 +346,11 @@ else:
 # Display summary stats
 st.subheader(f"📊 채널 목록 ({len(df)}개)")
 
-# Display table with row selection
-selection = st.dataframe(
+# Display table (read-only, no selection)
+st.dataframe(
     df,
     width="stretch",
     hide_index=True,
-    on_select="rerun",
-    selection_mode="single-row",
     column_config={
         "ID": None,  # Hide ID column
         "YouTube": st.column_config.LinkColumn(
@@ -365,11 +363,6 @@ selection = st.dataframe(
         "30일 성장": st.column_config.NumberColumn(format="%+d")
     }
 )
-
-# Update selected channel from table selection
-if selection and len(selection.selection.rows) > 0:
-    selected_row_idx = list(selection.selection.rows)[0]
-    st.session_state.selected_channel_id = df.iloc[selected_row_idx]['ID']
 
 # Quick delete - Channel list with delete buttons
 with st.expander("🗑️ 채널 삭제", expanded=False):
@@ -421,9 +414,20 @@ st.markdown("---")
 # Channel actions
 st.subheader("🔧 채널 작업")
 
-# Show channel actions if a channel is selected from table
-if st.session_state.selected_channel_id is not None and len(df) > 0:
-    selected_channel_id = st.session_state.selected_channel_id
+# Only show channel actions if there are channels
+if len(df) > 0:
+    # Channel selector
+    selected_channel_name = st.selectbox(
+        "작업할 채널 선택",
+        df['채널명'].tolist(),
+        key="channel_action_select"
+    )
+
+    # Get selected channel ID from dataframe
+    selected_channel_id = df[df['채널명'] == selected_channel_name]['ID'].iloc[0]
+
+    # Update session state
+    st.session_state.selected_channel_id = selected_channel_id
 
     # Get channel object
     selected_channel = db.get_channel_by_id(selected_channel_id)
@@ -434,7 +438,6 @@ if st.session_state.selected_channel_id is not None and len(df) > 0:
         # Display selected channel details
         st.markdown("---")
         st.markdown(f"### 📊 선택한 채널: **{selected_channel_name}**")
-        st.caption("💡 표에서 다른 채널을 클릭하여 선택하세요")
 
         # Get latest snapshot for channel data
         latest_snapshot = db.get_latest_channel_snapshot(selected_channel_id)
@@ -613,9 +616,9 @@ if st.session_state.selected_channel_id is not None and len(df) > 0:
                     st.session_state.confirm_delete_channel_id = selected_channel_id
                     st.rerun()
     else:
-        st.info("선택한 채널을 찾을 수 없습니다. 표에서 채널을 클릭하여 선택하세요.")
+        st.error("⚠️ 선택한 채널을 찾을 수 없습니다. 페이지를 새로고침하세요.")
 else:
-    st.info("📌 표에서 채널을 클릭하여 선택하세요")
+    st.info("📌 채널을 먼저 추가해주세요")
 
 # Footer
 st.markdown("---")
