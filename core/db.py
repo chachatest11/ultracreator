@@ -404,12 +404,21 @@ def get_videos_by_channel(channel_id: int, limit: int = 50) -> List[Video]:
     """Get recent videos for channel"""
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("""
-            SELECT * FROM videos
-            WHERE channel_id = ?
-            ORDER BY published_at DESC
-            LIMIT ?
-        """, (channel_id, limit))
+        if limit is None:
+            # Get all videos without limit
+            cursor.execute("""
+                SELECT * FROM videos
+                WHERE channel_id = ?
+                ORDER BY published_at DESC
+            """, (channel_id,))
+        else:
+            # Get limited number of videos
+            cursor.execute("""
+                SELECT * FROM videos
+                WHERE channel_id = ?
+                ORDER BY published_at DESC
+                LIMIT ?
+            """, (channel_id, limit))
         return [Video.from_db_row(row) for row in cursor.fetchall()]
 
 

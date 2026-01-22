@@ -673,23 +673,29 @@ with col3:
             except Exception as e:
                 st.error(f"오류 발생: {str(e)}")
 
-videos = db.get_videos_by_channel(selected_channel.id, limit=video_limit)
+# Fetch and sort videos based on selected option
+if sort_option == "최신순":
+    # Get most recent videos (default DB order)
+    videos = db.get_videos_by_channel(selected_channel.id, limit=video_limit)
 
-# Sort videos based on selected option
-if videos:
-    if sort_option == "인기순 (조회수)":
-        # Sort by view count (highest first)
-        videos_with_views = []
-        for video in videos:
-            snapshot = db.get_latest_video_snapshot(video.id)
-            view_count = snapshot.view_count if snapshot else 0
-            videos_with_views.append((video, view_count))
-        videos_with_views.sort(key=lambda x: x[1], reverse=True)
-        videos = [v[0] for v in videos_with_views]
-    elif sort_option == "날짜순 (오래된순)":
-        # Sort by published date (oldest first)
-        videos = sorted(videos, key=lambda v: v.published_at if v.published_at else datetime.min)
-    # else: "최신순" - already sorted by default from DB
+elif sort_option == "인기순 (조회수)":
+    # Get ALL videos, sort by view count, then take top N
+    all_videos = db.get_videos_by_channel(selected_channel.id, limit=None)
+    videos_with_views = []
+    for video in all_videos:
+        snapshot = db.get_latest_video_snapshot(video.id)
+        view_count = snapshot.view_count if snapshot else 0
+        videos_with_views.append((video, view_count))
+    videos_with_views.sort(key=lambda x: x[1], reverse=True)
+    videos = [v[0] for v in videos_with_views[:video_limit]]
+
+elif sort_option == "날짜순 (오래된순)":
+    # Get ALL videos, sort by date (oldest first), then take top N
+    all_videos = db.get_videos_by_channel(selected_channel.id, limit=None)
+    sorted_videos = sorted(all_videos, key=lambda v: v.published_at if v.published_at else datetime.min)
+    videos = sorted_videos[:video_limit]
+else:
+    videos = db.get_videos_by_channel(selected_channel.id, limit=video_limit)
 
 if not videos:
     st.info("이 채널의 영상 데이터가 없습니다.")
