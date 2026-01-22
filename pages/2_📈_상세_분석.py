@@ -641,7 +641,7 @@ with col1:
     video_limit = st.number_input(
         "표시할 영상 수",
         min_value=10,
-        max_value=200,
+        max_value=300,
         value=50,
         step=10,
         help="영상을 몇 개까지 표시할지 설정합니다"
