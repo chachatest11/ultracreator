@@ -49,8 +49,39 @@ with st.sidebar:
 
         st.markdown("---")
 
+        # Edit group
+        st.caption("📝 그룹 수정")
+        edit_group = st.selectbox(
+            "수정할 그룹",
+            [wl.name for wl in all_watchlists],
+            key="edit_group_select",
+            label_visibility="collapsed"
+        )
+
+        with st.form(key="edit_group_form"):
+            new_group_name_edit = st.text_input(
+                "새 그룹 이름",
+                value=edit_group,
+                label_visibility="collapsed"
+            )
+            edit_button = st.form_submit_button("✏️ 이름 변경", use_container_width=True)
+
+        if edit_button:
+            if new_group_name_edit and new_group_name_edit != edit_group:
+                edit_wl = next(wl for wl in all_watchlists if wl.name == edit_group)
+                db.update_watchlist(edit_wl.id, new_group_name_edit)
+                st.success(f"✓ '{edit_group}' → '{new_group_name_edit}'로 변경됨!")
+                st.session_state.refresh_trigger += 1
+                st.rerun()
+            elif new_group_name_edit == edit_group:
+                st.warning("변경할 이름을 입력하세요.")
+            else:
+                st.warning("그룹 이름을 입력하세요.")
+
+        st.markdown("---")
+
         # Delete group
-        st.caption("그룹 삭제")
+        st.caption("🗑️ 그룹 삭제")
         delete_group = st.selectbox(
             "삭제할 그룹",
             [wl.name for wl in all_watchlists],

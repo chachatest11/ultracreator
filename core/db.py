@@ -502,6 +502,13 @@ def delete_watchlist(watchlist_id: int):
         cursor.execute("DELETE FROM watchlists WHERE id = ?", (watchlist_id,))
 
 
+def update_watchlist(watchlist_id: int, new_name: str):
+    """Update watchlist name"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("UPDATE watchlists SET name = ? WHERE id = ?", (new_name, watchlist_id))
+
+
 def add_channel_to_watchlist(watchlist_id: int, channel_id: int):
     """Add channel to watchlist"""
     with get_db() as conn:
