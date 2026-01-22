@@ -633,10 +633,10 @@ with col2:
 
 # Recent videos
 st.markdown("---")
-st.subheader("🎬 최근 영상")
+st.subheader("🎬 영상 목록")
 
-# Video count selector and refresh button
-col1, col2, col3 = st.columns([2, 2, 4])
+# Video count selector, sort option, and refresh button
+col1, col2, col3, col4 = st.columns([2, 2, 2, 2])
 with col1:
     video_limit = st.number_input(
         "표시할 영상 수",
@@ -644,10 +644,17 @@ with col1:
         max_value=200,
         value=50,
         step=10,
-        help="최근 영상을 몇 개까지 표시할지 설정합니다"
+        help="영상을 몇 개까지 표시할지 설정합니다"
     )
 
 with col2:
+    sort_option = st.selectbox(
+        "정렬 기준",
+        ["최신순", "인기순 (조회수)", "날짜순 (오래된순)"],
+        help="영상 정렬 방식을 선택합니다"
+    )
+
+with col3:
     st.write("")  # Spacing
     st.write("")  # Spacing to align with input
     if st.button("🔄 지금 갱신", type="secondary", help="즉시 YouTube에서 최신 데이터를 가져옵니다 (1시간 이내 갱신된 경우에도 강제 갱신)"):
@@ -667,6 +674,22 @@ with col2:
                 st.error(f"오류 발생: {str(e)}")
 
 videos = db.get_videos_by_channel(selected_channel.id, limit=video_limit)
+
+# Sort videos based on selected option
+if videos:
+    if sort_option == "인기순 (조회수)":
+        # Sort by view count (highest first)
+        videos_with_views = []
+        for video in videos:
+            snapshot = db.get_latest_video_snapshot(video.id)
+            view_count = snapshot.view_count if snapshot else 0
+            videos_with_views.append((video, view_count))
+        videos_with_views.sort(key=lambda x: x[1], reverse=True)
+        videos = [v[0] for v in videos_with_views]
+    elif sort_option == "날짜순 (오래된순)":
+        # Sort by published date (oldest first)
+        videos = sorted(videos, key=lambda v: v.published_at if v.published_at else datetime.min)
+    # else: "최신순" - already sorted by default from DB
 
 if not videos:
     st.info("이 채널의 영상 데이터가 없습니다.")
