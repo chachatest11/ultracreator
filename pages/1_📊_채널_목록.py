@@ -188,6 +188,45 @@ with st.sidebar:
 
     st.markdown("---")
 
+    # Group management
+    st.header("🏷️ 그룹 관리")
+
+    # Create new group
+    with st.form(key="create_group_form"):
+        new_group_name = st.text_input("새 그룹 이름")
+        create_group_button = st.form_submit_button("그룹 생성", use_container_width=True)
+
+    if create_group_button:
+        if new_group_name:
+            try:
+                db.create_watchlist(new_group_name)
+                st.success(f"✓ '{new_group_name}' 그룹 생성됨!")
+                st.session_state.refresh_trigger += 1
+                st.rerun()
+            except Exception as e:
+                st.error(f"✗ 그룹 생성 실패: {e}")
+        else:
+            st.warning("그룹 이름을 입력하세요.")
+
+    # Delete group
+    all_watchlists = db.get_all_watchlists()
+    if all_watchlists:
+        st.caption("그룹 삭제")
+        delete_group = st.selectbox(
+            "삭제할 그룹",
+            [wl.name for wl in all_watchlists],
+            key="delete_group_select",
+            label_visibility="collapsed"
+        )
+        if st.button("그룹 삭제", width="stretch", type="secondary"):
+            delete_wl = next(wl for wl in all_watchlists if wl.name == delete_group)
+            db.delete_watchlist(delete_wl.id)
+            st.success(f"✓ '{delete_group}' 그룹 삭제됨!")
+            st.session_state.refresh_trigger += 1
+            st.rerun()
+
+    st.markdown("---")
+
     st.header("🔄 전체 갱신")
     if st.button("모든 채널 갱신", width="stretch"):
         with st.spinner("모든 채널을 갱신하는 중..."):
@@ -214,22 +253,43 @@ if not channels:
 # Filter options
 st.subheader("🎛️ 필터 & 정렬")
 
-col1, col2, col3 = st.columns(3)
+col1, col2, col3, col4 = st.columns(4)
+
+# Get all groups for filtering
+all_groups = db.get_all_watchlists()
+group_options = ["전체"] + [wl.name for wl in all_groups]
 
 with col1:
+    selected_group = st.selectbox(
+        "🏷️ 그룹",
+        group_options,
+        help="그룹별로 채널을 필터링합니다"
+    )
+
+with col2:
     filter_preset = st.selectbox(
         "프리셋",
         ["없음", "Shorts 중심", "해외 양산형"]
     )
 
-with col2:
+with col3:
     sort_by = st.selectbox(
         "정렬 기준",
         ["최근 추가순", "구독자수", "평균 조회수", "업로드 빈도", "Shorts 비중"]
     )
 
-with col3:
+with col4:
     sort_order = st.radio("정렬 순서", ["내림차순", "오름차순"], horizontal=True)
+
+# Get filtered channels by group
+if selected_group != "전체":
+    # Get group ID
+    selected_watchlist = next(wl for wl in all_groups if wl.name == selected_group)
+    # Get channels in this group
+    group_channels = db.get_watchlist_channels(selected_watchlist.id)
+    group_channel_ids = {ch.id for ch in group_channels}
+    # Filter channels
+    channels = [ch for ch in channels if ch.id in group_channel_ids]
 
 # Build channel data
 channel_data = []
@@ -256,6 +316,15 @@ for i, channel in enumerate(channels):
         if upload_freq > 7 or view_variance < 0.3:  # Not frequent enough or too stable
             continue
 
+    # Get channel groups
+    channel_groups = []
+    for wl in all_groups:
+        wl_channels = db.get_watchlist_channels(wl.id)
+        if any(wl_ch.id == channel.id for wl_ch in wl_channels):
+            channel_groups.append(wl.name)
+
+    groups_display = ", ".join(channel_groups) if channel_groups else "-"
+
     # Create YouTube URL
     handle_clean = channel.handle.lstrip('@') if channel.handle else ''
     if handle_clean:
@@ -266,6 +335,7 @@ for i, channel in enumerate(channels):
     channel_data.append({
         "ID": channel.id,
         "채널명": channel.title,
+        "그룹": groups_display,
         "YouTube": youtube_url,
         "핸들": channel.handle,
         "구독자수": channel_metrics['subscriber_count'],
@@ -417,6 +487,75 @@ if len(df) > 0:
             "최근 48시간 조회수",
             f"{views_48h:,}"
         )
+
+    st.markdown("---")
+
+    # Group management for selected channel
+    st.subheader("🏷️ 그룹 관리")
+
+    # Get current groups for this channel
+    current_groups = []
+    for wl in all_groups:
+        wl_channels = db.get_watchlist_channels(wl.id)
+        if any(wl_ch.id == selected_channel_id for wl_ch in wl_channels):
+            current_groups.append(wl.name)
+
+    if current_groups:
+        st.success(f"**현재 그룹:** {', '.join(current_groups)}")
+    else:
+        st.info("이 채널은 아직 그룹에 속해있지 않습니다.")
+
+    col_group1, col_group2 = st.columns(2)
+
+    with col_group1:
+        st.markdown("#### 그룹에 추가")
+        if all_groups:
+            # Get groups that don't have this channel
+            available_groups = [wl.name for wl in all_groups if wl.name not in current_groups]
+
+            if available_groups:
+                add_to_groups = st.multiselect(
+                    "추가할 그룹 선택",
+                    available_groups,
+                    key="add_to_groups"
+                )
+
+                if st.button("그룹에 추가", width="stretch", type="primary"):
+                    if add_to_groups:
+                        for group_name in add_to_groups:
+                            group_wl = next(wl for wl in all_groups if wl.name == group_name)
+                            db.add_channel_to_watchlist(group_wl.id, selected_channel_id)
+                        st.success(f"✓ {len(add_to_groups)}개 그룹에 추가됨!")
+                        st.session_state.refresh_trigger += 1
+                        st.rerun()
+                    else:
+                        st.warning("그룹을 선택하세요.")
+            else:
+                st.info("모든 그룹에 이미 추가되어 있습니다.")
+        else:
+            st.info("먼저 그룹을 생성하세요.")
+
+    with col_group2:
+        st.markdown("#### 그룹에서 제거")
+        if current_groups:
+            remove_from_groups = st.multiselect(
+                "제거할 그룹 선택",
+                current_groups,
+                key="remove_from_groups"
+            )
+
+            if st.button("그룹에서 제거", width="stretch", type="secondary"):
+                if remove_from_groups:
+                    for group_name in remove_from_groups:
+                        group_wl = next(wl for wl in all_groups if wl.name == group_name)
+                        db.remove_channel_from_watchlist(group_wl.id, selected_channel_id)
+                    st.success(f"✓ {len(remove_from_groups)}개 그룹에서 제거됨!")
+                    st.session_state.refresh_trigger += 1
+                    st.rerun()
+                else:
+                    st.warning("그룹을 선택하세요.")
+        else:
+            st.info("제거할 그룹이 없습니다.")
 
     st.markdown("---")
 
