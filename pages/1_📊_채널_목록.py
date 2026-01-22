@@ -16,6 +16,8 @@ if 'refresh_trigger' not in st.session_state:
     st.session_state.refresh_trigger = 0
 if 'confirm_delete_channel_id' not in st.session_state:
     st.session_state.confirm_delete_channel_id = None
+if 'selected_channel_id' not in st.session_state:
+    st.session_state.selected_channel_id = None
 
 # Sidebar - Add Channel
 with st.sidebar:
@@ -424,11 +426,13 @@ else:
 # Display summary stats
 st.subheader(f"📊 채널 목록 ({len(df)}개)")
 
-# Display table
-st.dataframe(
+# Display table with row selection
+selection = st.dataframe(
     df,
     width="stretch",
     hide_index=True,
+    on_select="rerun",
+    selection_mode="single-row",
     column_config={
         "ID": None,  # Hide ID column
         "YouTube": st.column_config.LinkColumn(
@@ -441,6 +445,11 @@ st.dataframe(
         "30일 성장": st.column_config.NumberColumn(format="%+d")
     }
 )
+
+# Update selected channel from table selection
+if selection and len(selection.selection.rows) > 0:
+    selected_row_idx = list(selection.selection.rows)[0]
+    st.session_state.selected_channel_id = df.iloc[selected_row_idx]['ID']
 
 # Quick delete - Channel list with delete buttons
 with st.expander("🗑️ 채널 삭제", expanded=False):
@@ -492,42 +501,69 @@ st.markdown("---")
 # Channel actions
 st.subheader("🔧 채널 작업")
 
-# Only show channel actions if there are channels
-if len(df) > 0:
-    selected_channel_name = st.selectbox(
-        "채널 선택",
-        df['채널명'].tolist()
-    )
+# Show channel actions if a channel is selected from table
+if st.session_state.selected_channel_id is not None and len(df) > 0:
+    selected_channel_id = st.session_state.selected_channel_id
 
-    selected_channel_id = df[df['채널명'] == selected_channel_name]['ID'].iloc[0]
+    # Get channel object
+    selected_channel = db.get_channel_by_id(selected_channel_id)
 
-    # Display selected channel details
-    st.markdown("---")
-    st.markdown(f"### 📊 선택한 채널: **{selected_channel_name}**")
+    if selected_channel:
+        selected_channel_name = selected_channel.title
 
-    # Get channel metrics including 48h views
-    channel_metrics = metrics.get_channel_metrics(selected_channel_id)
-    views_48h = metrics.calculate_views_48h(selected_channel_id)
+        # Display selected channel details
+        st.markdown("---")
+        st.markdown(f"### 📊 선택한 채널: **{selected_channel_name}**")
+        st.caption("💡 표에서 다른 채널을 클릭하여 선택하세요")
 
-    col_info1, col_info2, col_info3 = st.columns(3)
+        # Get latest snapshot for channel data
+        latest_snapshot = db.get_latest_channel_snapshot(selected_channel_id)
 
-    with col_info1:
-        st.metric(
-            "구독자",
-            f"{channel_metrics['subscriber_count']:,}"
-        )
+        if latest_snapshot:
+            subscriber_count = latest_snapshot.subscriber_count
+            view_count = latest_snapshot.view_count
+        else:
+            # No snapshot available - need to fetch data
+            subscriber_count = 0
+            view_count = 0
 
-    with col_info2:
-        st.metric(
-            "총 조회수",
-            f"{channel_metrics['view_count']:,}"
-        )
+        views_48h = metrics.calculate_views_48h(selected_channel_id)
 
-    with col_info3:
-        st.metric(
-            "최근 48시간 조회수",
-            f"{views_48h:,}"
-        )
+        col_info1, col_info2, col_info3 = st.columns(3)
+
+        with col_info1:
+            st.metric(
+                "구독자",
+                f"{subscriber_count:,}"
+            )
+
+        with col_info2:
+            st.metric(
+                "총 조회수",
+                f"{view_count:,}"
+            )
+
+        with col_info3:
+            st.metric(
+                "최근 48시간 조회수",
+                f"{views_48h:,}"
+            )
+
+        # If no snapshot, show warning and offer to fetch
+        if not latest_snapshot:
+            st.warning("⚠️ 채널 데이터가 없습니다. 데이터를 가져오려면 '📡 데이터 업데이트'를 실행하세요.")
+            if st.button("🔄 지금 데이터 가져오기", key="fetch_selected_channel"):
+                with st.spinner(f"{selected_channel_name} 데이터를 가져오는 중..."):
+                    try:
+                        jobs.fetch_channel_data(selected_channel_id)
+                        st.success("✓ 데이터를 가져왔습니다!")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"✗ 데이터 가져오기 실패: {e}")
+    else:
+        st.info("선택한 채널을 찾을 수 없습니다. 표에서 채널을 클릭하여 선택하세요.")
+else:
+    st.info("📌 표에서 채널을 클릭하여 선택하세요")
 
     st.markdown("---")
 
