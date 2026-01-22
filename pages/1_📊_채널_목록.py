@@ -23,6 +23,9 @@ if 'selected_channel_id' not in st.session_state:
 with st.sidebar:
     st.header("➕ 채널 추가")
 
+    # Get all groups for selection
+    all_groups_sidebar = db.get_all_watchlists()
+
     # Use form to enable Enter key submission
     with st.form(key="add_channel_form"):
         channel_input = st.text_area(
@@ -30,6 +33,17 @@ with st.sidebar:
             placeholder="UC..., @username, https://youtube.com/@...\n한 줄에 하나씩 입력",
             height=100
         )
+
+        # Group selection
+        if all_groups_sidebar:
+            selected_groups = st.multiselect(
+                "그룹에 추가 (선택사항)",
+                [wl.name for wl in all_groups_sidebar],
+                help="채널을 추가할 그룹을 선택하세요. 여러 개 선택 가능합니다."
+            )
+        else:
+            selected_groups = []
+            st.info("💡 그룹이 없습니다. '⭐ 그룹 관리' 페이지에서 그룹을 먼저 생성하세요.")
 
         submit_button = st.form_submit_button("채널 추가", type="primary", use_container_width=True)
 
@@ -53,7 +67,15 @@ with st.sidebar:
                     )
 
                     if result:
-                        st.success("✓ 채널이 추가되었습니다!")
+                        # Add to selected groups
+                        if selected_groups:
+                            channel = result  # Result is the channel object
+                            for group_name in selected_groups:
+                                group_wl = next(wl for wl in all_groups_sidebar if wl.name == group_name)
+                                db.add_channel_to_watchlist(group_wl.id, channel.id)
+                            st.success(f"✓ 채널이 추가되고 {len(selected_groups)}개 그룹에 할당되었습니다!")
+                        else:
+                            st.success("✓ 채널이 추가되었습니다!")
                         st.session_state.refresh_trigger += 1
                         st.rerun()
                     else:
@@ -66,6 +88,7 @@ with st.sidebar:
                 success_count = 0
                 failed_count = 0
                 failed_channels = []
+                added_channels = []  # Track successfully added channels
 
                 for idx, single_input in enumerate(channel_inputs, 1):
                     progress_placeholder.progress(idx / len(channel_inputs),
@@ -80,6 +103,7 @@ with st.sidebar:
 
                         if result:
                             success_count += 1
+                            added_channels.append(result)  # Save successfully added channel
                             status_placeholder.success(
                                 f"✓ {success_count}개 성공, {failed_count}개 실패"
                             )
@@ -98,8 +122,18 @@ with st.sidebar:
 
                 progress_placeholder.empty()
 
+                # Add all successful channels to selected groups
+                if selected_groups and added_channels:
+                    for channel in added_channels:
+                        for group_name in selected_groups:
+                            group_wl = next(wl for wl in all_groups_sidebar if wl.name == group_name)
+                            db.add_channel_to_watchlist(group_wl.id, channel.id)
+
                 # Final result
-                st.success(f"🎉 완료! {success_count}개 채널 추가 성공, {failed_count}개 실패")
+                if selected_groups and success_count > 0:
+                    st.success(f"🎉 완료! {success_count}개 채널 추가 성공 ({len(selected_groups)}개 그룹에 할당), {failed_count}개 실패")
+                else:
+                    st.success(f"🎉 완료! {success_count}개 채널 추가 성공, {failed_count}개 실패")
 
                 if failed_channels:
                     with st.expander(f"❌ 실패한 채널 ({failed_count}개)"):
