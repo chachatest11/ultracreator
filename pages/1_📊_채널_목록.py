@@ -416,21 +416,29 @@ st.subheader("🔧 채널 작업")
 
 # Only show channel actions if there are channels
 if len(df) > 0:
+    # Create channel name to ID mapping for reliable selection
+    channel_name_to_id = dict(zip(df['채널명'], df['ID']))
+
     # Channel selector
     selected_channel_name = st.selectbox(
         "작업할 채널 선택",
-        df['채널명'].tolist(),
+        list(channel_name_to_id.keys()),
         key="channel_action_select"
     )
 
-    # Get selected channel ID from dataframe
-    selected_channel_id = df[df['채널명'] == selected_channel_name]['ID'].iloc[0]
+    # Get selected channel ID from mapping
+    selected_channel_id = channel_name_to_id[selected_channel_name]
 
     # Update session state
     st.session_state.selected_channel_id = selected_channel_id
 
-    # Get channel object
-    selected_channel = db.get_channel_by_id(selected_channel_id)
+    # Get channel object directly
+    try:
+        selected_channel = db.get_channel_by_id(int(selected_channel_id))
+    except Exception as e:
+        st.error(f"⚠️ 채널 조회 중 오류 발생: {e}")
+        st.error(f"디버그 정보 - Channel ID: {selected_channel_id} (타입: {type(selected_channel_id)})")
+        selected_channel = None
 
     if selected_channel:
         selected_channel_name = selected_channel.title
