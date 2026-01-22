@@ -616,8 +616,6 @@ if st.session_state.selected_channel_id is not None and len(df) > 0:
         st.info("선택한 채널을 찾을 수 없습니다. 표에서 채널을 클릭하여 선택하세요.")
 else:
     st.info("📌 표에서 채널을 클릭하여 선택하세요")
-else:
-    st.info("채널을 먼저 추가해주세요.")
 
 # Footer
 st.markdown("---")
