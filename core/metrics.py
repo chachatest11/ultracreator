@@ -3,7 +3,7 @@ Analytics metrics calculation
 """
 import statistics
 from typing import List, Dict, Any, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from collections import Counter
 
 from . import db
@@ -49,15 +49,21 @@ def calculate_views_48h(channel_id: int) -> int:
     if not videos:
         return 0
 
-    now = datetime.now()
+    now = datetime.now(timezone.utc)
     cutoff_time = now - timedelta(hours=48)
 
     total_views = 0
     for video in videos:
-        if video.published_at and video.published_at >= cutoff_time:
-            snapshot = db.get_latest_video_snapshot(video.id)
-            if snapshot:
-                total_views += snapshot.view_count
+        if video.published_at:
+            # Make published_at timezone-aware if it's naive
+            pub_time = video.published_at
+            if pub_time.tzinfo is None:
+                pub_time = pub_time.replace(tzinfo=timezone.utc)
+
+            if pub_time >= cutoff_time:
+                snapshot = db.get_latest_video_snapshot(video.id)
+                if snapshot:
+                    total_views += snapshot.view_count
 
     return total_views
 
