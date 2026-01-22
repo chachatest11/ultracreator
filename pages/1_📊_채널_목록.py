@@ -480,142 +480,142 @@ if st.session_state.selected_channel_id is not None and len(df) > 0:
                         st.rerun()
                     except Exception as e:
                         st.error(f"✗ 데이터 가져오기 실패: {e}")
-    else:
-        st.info("선택한 채널을 찾을 수 없습니다. 표에서 채널을 클릭하여 선택하세요.")
-else:
-    st.info("📌 표에서 채널을 클릭하여 선택하세요")
 
-    st.markdown("---")
+        st.markdown("---")
 
-    # Group management for selected channel
-    st.subheader("🏷️ 그룹 관리")
+        # Group management for selected channel
+        st.subheader("🏷️ 그룹 관리")
 
-    # Get current groups for this channel
-    current_groups = []
-    for wl in all_groups:
-        wl_channels = db.get_watchlist_channels(wl.id)
-        if any(wl_ch.id == selected_channel_id for wl_ch in wl_channels):
-            current_groups.append(wl.name)
+        # Get current groups for this channel
+        current_groups = []
+        for wl in all_groups:
+            wl_channels = db.get_watchlist_channels(wl.id)
+            if any(wl_ch.id == selected_channel_id for wl_ch in wl_channels):
+                current_groups.append(wl.name)
 
-    if current_groups:
-        st.success(f"**현재 그룹:** {', '.join(current_groups)}")
-    else:
-        st.info("이 채널은 아직 그룹에 속해있지 않습니다.")
+        if current_groups:
+            st.success(f"**현재 그룹:** {', '.join(current_groups)}")
+        else:
+            st.info("이 채널은 아직 그룹에 속해있지 않습니다.")
 
-    col_group1, col_group2 = st.columns(2)
+        col_group1, col_group2 = st.columns(2)
 
-    with col_group1:
-        st.markdown("#### 그룹에 추가")
-        if all_groups:
-            # Get groups that don't have this channel
-            available_groups = [wl.name for wl in all_groups if wl.name not in current_groups]
+        with col_group1:
+            st.markdown("#### 그룹에 추가")
+            if all_groups:
+                # Get groups that don't have this channel
+                available_groups = [wl.name for wl in all_groups if wl.name not in current_groups]
 
-            if available_groups:
-                add_to_groups = st.multiselect(
-                    "추가할 그룹 선택",
-                    available_groups,
-                    key="add_to_groups"
+                if available_groups:
+                    add_to_groups = st.multiselect(
+                        "추가할 그룹 선택",
+                        available_groups,
+                        key="add_to_groups"
+                    )
+
+                    if st.button("그룹에 추가", width="stretch", type="primary"):
+                        if add_to_groups:
+                            for group_name in add_to_groups:
+                                group_wl = next(wl for wl in all_groups if wl.name == group_name)
+                                db.add_channel_to_watchlist(group_wl.id, selected_channel_id)
+                            st.success(f"✓ {len(add_to_groups)}개 그룹에 추가됨!")
+                            st.session_state.refresh_trigger += 1
+                            st.rerun()
+                        else:
+                            st.warning("그룹을 선택하세요.")
+                else:
+                    st.info("모든 그룹에 이미 추가되어 있습니다.")
+            else:
+                st.info("먼저 그룹을 생성하세요.")
+
+        with col_group2:
+            st.markdown("#### 그룹에서 제거")
+            if current_groups:
+                remove_from_groups = st.multiselect(
+                    "제거할 그룹 선택",
+                    current_groups,
+                    key="remove_from_groups"
                 )
 
-                if st.button("그룹에 추가", width="stretch", type="primary"):
-                    if add_to_groups:
-                        for group_name in add_to_groups:
+                if st.button("그룹에서 제거", width="stretch", type="secondary"):
+                    if remove_from_groups:
+                        for group_name in remove_from_groups:
                             group_wl = next(wl for wl in all_groups if wl.name == group_name)
-                            db.add_channel_to_watchlist(group_wl.id, selected_channel_id)
-                        st.success(f"✓ {len(add_to_groups)}개 그룹에 추가됨!")
+                            db.remove_channel_from_watchlist(group_wl.id, selected_channel_id)
+                        st.success(f"✓ {len(remove_from_groups)}개 그룹에서 제거됨!")
                         st.session_state.refresh_trigger += 1
                         st.rerun()
                     else:
                         st.warning("그룹을 선택하세요.")
             else:
-                st.info("모든 그룹에 이미 추가되어 있습니다.")
-        else:
-            st.info("먼저 그룹을 생성하세요.")
+                st.info("제거할 그룹이 없습니다.")
 
-    with col_group2:
-        st.markdown("#### 그룹에서 제거")
-        if current_groups:
-            remove_from_groups = st.multiselect(
-                "제거할 그룹 선택",
-                current_groups,
-                key="remove_from_groups"
-            )
+        st.markdown("---")
 
-            if st.button("그룹에서 제거", width="stretch", type="secondary"):
-                if remove_from_groups:
-                    for group_name in remove_from_groups:
-                        group_wl = next(wl for wl in all_groups if wl.name == group_name)
-                        db.remove_channel_from_watchlist(group_wl.id, selected_channel_id)
-                    st.success(f"✓ {len(remove_from_groups)}개 그룹에서 제거됨!")
-                    st.session_state.refresh_trigger += 1
-                    st.rerun()
-                else:
-                    st.warning("그룹을 선택하세요.")
-        else:
-            st.info("제거할 그룹이 없습니다.")
+        col1, col2, col3 = st.columns(3)
 
-    st.markdown("---")
+        with col1:
+            if st.button("📊 상세 보기", width="stretch"):
+                # Store selected channel in session state
+                st.session_state.selected_channel_id = selected_channel_id
+                st.switch_page("pages/2_📈_상세_분석.py")
 
-    col1, col2, col3 = st.columns(3)
+        with col2:
+            if st.button("🔄 채널 갱신", width="stretch"):
+                with st.spinner("채널을 갱신하는 중..."):
+                    progress_placeholder = st.empty()
 
-    with col1:
-        if st.button("📊 상세 보기", width="stretch"):
-            # Store selected channel in session state
-            st.session_state.selected_channel_id = selected_channel_id
-            st.switch_page("pages/2_📈_상세_분석.py")
+                    def show_progress(msg):
+                        progress_placeholder.info(msg)
 
-    with col2:
-        if st.button("🔄 채널 갱신", width="stretch"):
-            with st.spinner("채널을 갱신하는 중..."):
-                progress_placeholder = st.empty()
-
-                def show_progress(msg):
-                    progress_placeholder.info(msg)
-
-                # Get the channel to verify it exists
-                channel = db.get_channel_by_id(selected_channel_id)
-                if not channel:
-                    st.error("✗ 선택한 채널을 찾을 수 없습니다. 페이지를 새로고침하세요.")
-                else:
-                    success = jobs.refresh_channel_data(
-                        selected_channel_id,
-                        progress_callback=show_progress
-                    )
-
-                    if success:
-                        st.success("✓ 채널이 갱신되었습니다!")
-                        st.session_state.refresh_trigger += 1
-                        st.rerun()
+                    # Get the channel to verify it exists
+                    channel = db.get_channel_by_id(selected_channel_id)
+                    if not channel:
+                        st.error("✗ 선택한 채널을 찾을 수 없습니다. 페이지를 새로고침하세요.")
                     else:
-                        st.error("✗ 채널 갱신에 실패했습니다.")
+                        success = jobs.refresh_channel_data(
+                            selected_channel_id,
+                            progress_callback=show_progress
+                        )
 
-    with col3:
-        # Check if we're in delete confirmation mode for this channel
-        if st.session_state.confirm_delete_channel_id == selected_channel_id:
-            st.warning(f"⚠️ '{selected_channel_name}' 채널을 삭제하시겠습니까?")
-            col_yes, col_no = st.columns(2)
-            with col_yes:
-                if st.button("✓ 삭제", key="confirm_delete", width="stretch", type="primary"):
-                    try:
-                        result = db.delete_channel(selected_channel_id)
-                        st.session_state.confirm_delete_channel_id = None
-                        if result == "already_deleted":
-                            st.warning(f"⚠️ '{selected_channel_name}'은(는) 이미 삭제되었습니다. 새로고침합니다.")
+                        if success:
+                            st.success("✓ 채널이 갱신되었습니다!")
+                            st.session_state.refresh_trigger += 1
+                            st.rerun()
                         else:
-                            st.success("✓ 채널이 삭제되었습니다!")
-                        st.session_state.refresh_trigger += 1
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"✗ 삭제 실패: {str(e)}")
+                            st.error("✗ 채널 갱신에 실패했습니다.")
+
+        with col3:
+            # Check if we're in delete confirmation mode for this channel
+            if st.session_state.confirm_delete_channel_id == selected_channel_id:
+                st.warning(f"⚠️ '{selected_channel_name}' 채널을 삭제하시겠습니까?")
+                col_yes, col_no = st.columns(2)
+                with col_yes:
+                    if st.button("✓ 삭제", key="confirm_delete", width="stretch", type="primary"):
+                        try:
+                            result = db.delete_channel(selected_channel_id)
+                            st.session_state.confirm_delete_channel_id = None
+                            if result == "already_deleted":
+                                st.warning(f"⚠️ '{selected_channel_name}'은(는) 이미 삭제되었습니다. 새로고침합니다.")
+                            else:
+                                st.success("✓ 채널이 삭제되었습니다!")
+                            st.session_state.refresh_trigger += 1
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"✗ 삭제 실패: {str(e)}")
+                            st.session_state.confirm_delete_channel_id = None
+                with col_no:
+                    if st.button("✗ 취소", key="cancel_delete", width="stretch"):
                         st.session_state.confirm_delete_channel_id = None
-            with col_no:
-                if st.button("✗ 취소", key="cancel_delete", width="stretch"):
-                    st.session_state.confirm_delete_channel_id = None
+                        st.rerun()
+            else:
+                if st.button("🗑️ 채널 삭제", width="stretch", type="secondary"):
+                    st.session_state.confirm_delete_channel_id = selected_channel_id
                     st.rerun()
-        else:
-            if st.button("🗑️ 채널 삭제", width="stretch", type="secondary"):
-                st.session_state.confirm_delete_channel_id = selected_channel_id
-                st.rerun()
+    else:
+        st.info("선택한 채널을 찾을 수 없습니다. 표에서 채널을 클릭하여 선택하세요.")
+else:
+    st.info("📌 표에서 채널을 클릭하여 선택하세요")
 else:
     st.info("채널을 먼저 추가해주세요.")
 
