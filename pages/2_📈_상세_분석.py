@@ -726,15 +726,20 @@ with col3:
                 st.error(f"오류 발생: {str(e)}")
 
 # Fetch and sort videos based on selected option
+# Get ALL videos first, then filter for Shorts (<=60 seconds)
+all_videos = db.get_videos_by_channel(selected_channel.id, limit=None)
+
+# Filter for Shorts only (60 seconds or less)
+shorts_videos = [v for v in all_videos if v.duration_seconds <= 60]
+
 if sort_option == "최신순":
-    # Get most recent videos (default DB order)
-    videos = db.get_videos_by_channel(selected_channel.id, limit=video_limit)
+    # Get most recent Shorts (already sorted by published_at DESC from DB)
+    videos = shorts_videos[:video_limit]
 
 elif sort_option == "인기순 (조회수)":
-    # Get ALL videos, sort by view count, then take top N
-    all_videos = db.get_videos_by_channel(selected_channel.id, limit=None)
+    # Sort Shorts by view count, then take top N
     videos_with_views = []
-    for video in all_videos:
+    for video in shorts_videos:
         snapshot = db.get_latest_video_snapshot(video.id)
         view_count = snapshot.view_count if snapshot else 0
         videos_with_views.append((video, view_count))
@@ -742,14 +747,13 @@ elif sort_option == "인기순 (조회수)":
     videos = [v[0] for v in videos_with_views[:video_limit]]
 
 elif sort_option == "날짜순 (오래된순)":
-    # Get ALL videos, sort by date (oldest first), then take top N
-    all_videos = db.get_videos_by_channel(selected_channel.id, limit=None)
+    # Sort Shorts by date (oldest first), then take top N
     # Use timezone-aware datetime.min for comparison
     min_datetime = datetime.min.replace(tzinfo=timezone.utc)
-    sorted_videos = sorted(all_videos, key=lambda v: v.published_at if v.published_at else min_datetime)
+    sorted_videos = sorted(shorts_videos, key=lambda v: v.published_at if v.published_at else min_datetime)
     videos = sorted_videos[:video_limit]
 else:
-    videos = db.get_videos_by_channel(selected_channel.id, limit=video_limit)
+    videos = shorts_videos[:video_limit]
 
 if not videos:
     st.info("이 채널의 영상 데이터가 없습니다.")
