@@ -592,8 +592,7 @@ def get_video_comments(video_id: str, max_results: int = 20) -> List[Dict[str, A
     Returns:
         List of comment dictionaries with author, text, likes, and published date
     """
-    manager = APIKeyManager()
-
+    url = f"{BASE_URL}/commentThreads"
     params = {
         "part": "snippet",
         "videoId": video_id,
@@ -603,7 +602,7 @@ def get_video_comments(video_id: str, max_results: int = 20) -> List[Dict[str, A
     }
 
     try:
-        data = manager.make_request("commentThreads", params)
+        data = _make_api_request(url, params)
 
         comments = []
         for item in data.get("items", []):
