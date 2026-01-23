@@ -726,32 +726,49 @@ with col3:
                 st.error(f"오류 발생: {str(e)}")
 
 # Fetch and sort videos based on selected option
+# Initialize variables
+shorts_videos = []
+videos = []
+
 if sort_option == "최신순":
     # Get most recent videos (DESC order from DB)
+    st.caption("🔍 전체 쇼츠 영상을 불러오는 중...")
     all_videos = db.get_videos_by_channel(selected_channel.id, limit=None, order_by="DESC")
     # Filter for Shorts only (60 seconds or less)
     shorts_videos = [v for v in all_videos if v.duration_seconds <= 60]
+    st.caption(f"📊 전체 영상: {len(all_videos)}개, 쇼츠: {len(shorts_videos)}개")
     videos = shorts_videos[:video_limit]
 
 elif sort_option == "인기순 (조회수)":
     # Get all videos, filter Shorts, then sort by view count
+    st.caption("🔍 전체 쇼츠 영상을 불러오고 조회수를 확인하는 중...")
     all_videos = db.get_videos_by_channel(selected_channel.id, limit=None, order_by="DESC")
     shorts_videos = [v for v in all_videos if v.duration_seconds <= 60]
+    st.caption(f"📊 전체 영상: {len(all_videos)}개, 쇼츠: {len(shorts_videos)}개")
 
     # Sort Shorts by view count, then take top N
+    st.caption("📈 조회수로 정렬 중...")
     videos_with_views = []
     for video in shorts_videos:
         snapshot = db.get_latest_video_snapshot(video.id)
         view_count = snapshot.view_count if snapshot else 0
         videos_with_views.append((video, view_count))
+
     videos_with_views.sort(key=lambda x: x[1], reverse=True)
     videos = [v[0] for v in videos_with_views[:video_limit]]
 
+    # Show top 5 view counts for debugging
+    if videos_with_views:
+        top_5_views = [f"{v[1]:,}" for v in videos_with_views[:5]]
+        st.caption(f"🔝 상위 5개 조회수: {', '.join(top_5_views)}")
+
 elif sort_option == "날짜순 (오래된순)":
     # Get OLDEST videos first (ASC order from DB)
+    st.caption("🔍 가장 오래된 쇼츠 영상을 불러오는 중...")
     all_videos = db.get_videos_by_channel(selected_channel.id, limit=None, order_by="ASC")
     # Filter for Shorts only (60 seconds or less)
     shorts_videos = [v for v in all_videos if v.duration_seconds <= 60]
+    st.caption(f"📊 전체 영상: {len(all_videos)}개, 쇼츠: {len(shorts_videos)}개")
     # Take first N (which are the oldest Shorts)
     videos = shorts_videos[:video_limit]
 else:
@@ -763,7 +780,12 @@ if not videos:
     st.info("이 채널의 영상 데이터가 없습니다.")
 else:
     # Display videos in grid with thumbnails
-    st.markdown(f"**총 {len(videos)}개의 영상**")
+    if sort_option == "인기순 (조회수)":
+        st.markdown(f"**총 {len(videos)}개의 영상** (전체 쇼츠 {len(shorts_videos)}개 중 조회수 상위)")
+    elif sort_option == "날짜순 (오래된순)":
+        st.markdown(f"**총 {len(videos)}개의 영상** (전체 쇼츠 {len(shorts_videos)}개 중 가장 오래된 영상)")
+    else:
+        st.markdown(f"**총 {len(videos)}개의 영상** (전체 쇼츠 {len(shorts_videos)}개 중 최신)")
 
     # Create grid layout (5 columns)
     cols_per_row = 5
