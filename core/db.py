@@ -400,23 +400,34 @@ def insert_video(video: Video) -> int:
         return cursor.fetchone()[0]
 
 
-def get_videos_by_channel(channel_id: int, limit: int = 50) -> List[Video]:
-    """Get recent videos for channel"""
+def get_videos_by_channel(channel_id: int, limit: int = 50, order_by: str = "DESC") -> List[Video]:
+    """
+    Get videos for channel
+
+    Args:
+        channel_id: Channel ID
+        limit: Maximum number of videos (None for all)
+        order_by: Sort order - "DESC" for newest first, "ASC" for oldest first
+    """
     with get_db() as conn:
         cursor = conn.cursor()
+
+        # Validate order_by to prevent SQL injection
+        order = "ASC" if order_by.upper() == "ASC" else "DESC"
+
         if limit is None:
             # Get all videos without limit
-            cursor.execute("""
+            cursor.execute(f"""
                 SELECT * FROM videos
                 WHERE channel_id = ?
-                ORDER BY published_at DESC
+                ORDER BY published_at {order}
             """, (channel_id,))
         else:
             # Get limited number of videos
-            cursor.execute("""
+            cursor.execute(f"""
                 SELECT * FROM videos
                 WHERE channel_id = ?
-                ORDER BY published_at DESC
+                ORDER BY published_at {order}
                 LIMIT ?
             """, (channel_id, limit))
         return [Video.from_db_row(row) for row in cursor.fetchall()]

@@ -726,17 +726,18 @@ with col3:
                 st.error(f"오류 발생: {str(e)}")
 
 # Fetch and sort videos based on selected option
-# Get ALL videos first, then filter for Shorts (<=60 seconds)
-all_videos = db.get_videos_by_channel(selected_channel.id, limit=None)
-
-# Filter for Shorts only (60 seconds or less)
-shorts_videos = [v for v in all_videos if v.duration_seconds <= 60]
-
 if sort_option == "최신순":
-    # Get most recent Shorts (already sorted by published_at DESC from DB)
+    # Get most recent videos (DESC order from DB)
+    all_videos = db.get_videos_by_channel(selected_channel.id, limit=None, order_by="DESC")
+    # Filter for Shorts only (60 seconds or less)
+    shorts_videos = [v for v in all_videos if v.duration_seconds <= 60]
     videos = shorts_videos[:video_limit]
 
 elif sort_option == "인기순 (조회수)":
+    # Get all videos, filter Shorts, then sort by view count
+    all_videos = db.get_videos_by_channel(selected_channel.id, limit=None, order_by="DESC")
+    shorts_videos = [v for v in all_videos if v.duration_seconds <= 60]
+
     # Sort Shorts by view count, then take top N
     videos_with_views = []
     for video in shorts_videos:
@@ -747,12 +748,15 @@ elif sort_option == "인기순 (조회수)":
     videos = [v[0] for v in videos_with_views[:video_limit]]
 
 elif sort_option == "날짜순 (오래된순)":
-    # Sort Shorts by date (oldest first), then take top N
-    # Use timezone-aware datetime.min for comparison
-    min_datetime = datetime.min.replace(tzinfo=timezone.utc)
-    sorted_videos = sorted(shorts_videos, key=lambda v: v.published_at if v.published_at else min_datetime)
-    videos = sorted_videos[:video_limit]
+    # Get OLDEST videos first (ASC order from DB)
+    all_videos = db.get_videos_by_channel(selected_channel.id, limit=None, order_by="ASC")
+    # Filter for Shorts only (60 seconds or less)
+    shorts_videos = [v for v in all_videos if v.duration_seconds <= 60]
+    # Take first N (which are the oldest Shorts)
+    videos = shorts_videos[:video_limit]
 else:
+    all_videos = db.get_videos_by_channel(selected_channel.id, limit=None, order_by="DESC")
+    shorts_videos = [v for v in all_videos if v.duration_seconds <= 60]
     videos = shorts_videos[:video_limit]
 
 if not videos:
