@@ -49,55 +49,54 @@ def show_video_player(video_id, video_title):
 
     # Comments section
     st.markdown("---")
-    st.subheader("💬 댓글")
 
-    with st.spinner("댓글을 불러오는 중..."):
-        try:
-            from core import youtube_api
-            from core.youtube_api import YouTubeAPIError
+    # Expandable comments section
+    with st.expander("💬 댓글 보기", expanded=False):
+        with st.spinner("댓글을 불러오는 중..."):
+            try:
+                from core import youtube_api
+                from core.youtube_api import YouTubeAPIError
 
-            # Debug info
-            st.caption(f"🔍 Video ID: {video_id}")
+                comments = youtube_api.get_video_comments(video_id, max_results=20)
 
-            comments = youtube_api.get_video_comments(video_id, max_results=20)
+                if comments and len(comments) > 0:
+                    st.caption(f"**총 {len(comments)}개의 댓글** (인기순)")
+                    st.markdown("---")
 
-            if comments and len(comments) > 0:
-                st.caption(f"**총 {len(comments)}개의 댓글** (인기순)")
+                    # Display comments in a scrollable container
+                    for idx, comment in enumerate(comments, 1):
+                        with st.container():
+                            col_author, col_likes = st.columns([4, 1])
+                            with col_author:
+                                st.markdown(f"**{comment['author']}**")
+                            with col_likes:
+                                if comment['like_count'] > 0:
+                                    st.caption(f"👍 {comment['like_count']:,}")
 
-                # Display comments in a scrollable container
-                for idx, comment in enumerate(comments, 1):
-                    with st.container():
-                        col_author, col_likes = st.columns([4, 1])
-                        with col_author:
-                            st.markdown(f"**{comment['author']}**")
-                        with col_likes:
-                            if comment['like_count'] > 0:
-                                st.caption(f"👍 {comment['like_count']:,}")
+                            st.markdown(comment['text'])
 
-                        st.markdown(comment['text'])
+                            # Published date
+                            try:
+                                pub_date = datetime.fromisoformat(comment['published_at'].replace('Z', '+00:00'))
+                                st.caption(f"📅 {pub_date.strftime('%Y-%m-%d %H:%M')}")
+                            except:
+                                pass
 
-                        # Published date
-                        try:
-                            pub_date = datetime.fromisoformat(comment['published_at'].replace('Z', '+00:00'))
-                            st.caption(f"📅 {pub_date.strftime('%Y-%m-%d %H:%M')}")
-                        except:
-                            pass
+                            if idx < len(comments):
+                                st.markdown("---")
+                else:
+                    st.info("💡 댓글이 없습니다.")
 
-                        if idx < len(comments):
-                            st.markdown("---")
-            else:
-                st.info("💡 댓글이 없습니다.")
-
-        except YouTubeAPIError as e:
-            error_msg = str(e).lower()
-            if "disabled" in error_msg:
-                st.info("💡 이 영상은 댓글이 비활성화되어 있습니다.")
-            else:
-                st.error(f"⚠️ 댓글을 불러오는 중 오류 발생: {str(e)}")
-                st.caption("YouTube API 키를 확인하거나 잠시 후 다시 시도해주세요.")
-        except Exception as e:
-            st.error(f"⚠️ 예상치 못한 오류: {str(e)}")
-            st.caption(f"오류 타입: {type(e).__name__}")
+            except YouTubeAPIError as e:
+                error_msg = str(e).lower()
+                if "disabled" in error_msg:
+                    st.info("💡 이 영상은 댓글이 비활성화되어 있습니다.")
+                else:
+                    st.error(f"⚠️ 댓글을 불러오는 중 오류 발생: {str(e)}")
+                    st.caption("YouTube API 키를 확인하거나 잠시 후 다시 시도해주세요.")
+            except Exception as e:
+                st.error(f"⚠️ 예상치 못한 오류: {str(e)}")
+                st.caption(f"오류 타입: {type(e).__name__}")
 
     # Download options
     st.markdown("---")
