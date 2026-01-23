@@ -579,3 +579,52 @@ def get_channel_by_identifier(identifier: str) -> Dict[str, Any]:
         return get_channel_info(value)
     else:
         return get_channel_by_handle(value)
+
+
+def get_video_comments(video_id: str, max_results: int = 20) -> List[Dict[str, Any]]:
+    """
+    Get comments for a video
+
+    Args:
+        video_id: YouTube video ID
+        max_results: Maximum number of comments to retrieve (default 20)
+
+    Returns:
+        List of comment dictionaries with author, text, likes, and published date
+    """
+    manager = APIKeyManager()
+
+    params = {
+        "part": "snippet",
+        "videoId": video_id,
+        "maxResults": min(max_results, 100),
+        "order": "relevance",  # Get most relevant comments first
+        "textFormat": "plainText"
+    }
+
+    try:
+        data = manager.make_request("commentThreads", params)
+
+        comments = []
+        for item in data.get("items", []):
+            snippet = item.get("snippet", {}).get("topLevelComment", {}).get("snippet", {})
+
+            comments.append({
+                "author": snippet.get("authorDisplayName", "Unknown"),
+                "author_channel_url": snippet.get("authorChannelUrl", ""),
+                "text": snippet.get("textDisplay", ""),
+                "like_count": snippet.get("likeCount", 0),
+                "published_at": snippet.get("publishedAt", ""),
+                "updated_at": snippet.get("updatedAt", "")
+            })
+
+        return comments
+
+    except YouTubeAPIError as e:
+        # Comments might be disabled for the video
+        if "commentsDisabled" in str(e) or "forbidden" in str(e).lower():
+            return []
+        raise
+    except Exception as e:
+        # Return empty list if any error occurs
+        return []

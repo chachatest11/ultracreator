@@ -5,7 +5,7 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import time
 import os
 import tempfile
@@ -46,6 +46,45 @@ def show_video_player(video_id, video_title):
     except Exception as e:
         st.error("⚠️ 동영상을 재생할 수 없습니다. 위의 'YouTube에서 보기' 버튼을 클릭하세요.")
         st.caption(f"일부 동영상은 외부 사이트에서 재생이 제한되어 있습니다.")
+
+    # Comments section
+    st.markdown("---")
+    st.subheader("💬 댓글")
+
+    with st.spinner("댓글을 불러오는 중..."):
+        try:
+            from core import youtube_api
+            comments = youtube_api.get_video_comments(video_id, max_results=20)
+
+            if comments:
+                st.caption(f"**총 {len(comments)}개의 댓글** (인기순)")
+
+                # Display comments in a scrollable container
+                for idx, comment in enumerate(comments, 1):
+                    with st.container():
+                        col_author, col_likes = st.columns([4, 1])
+                        with col_author:
+                            st.markdown(f"**{comment['author']}**")
+                        with col_likes:
+                            if comment['like_count'] > 0:
+                                st.caption(f"👍 {comment['like_count']:,}")
+
+                        st.markdown(comment['text'])
+
+                        # Published date
+                        try:
+                            pub_date = datetime.fromisoformat(comment['published_at'].replace('Z', '+00:00'))
+                            st.caption(f"📅 {pub_date.strftime('%Y-%m-%d %H:%M')}")
+                        except:
+                            pass
+
+                        if idx < len(comments):
+                            st.markdown("---")
+            else:
+                st.info("💡 댓글이 비활성화되어 있거나 댓글이 없습니다.")
+
+        except Exception as e:
+            st.warning(f"⚠️ 댓글을 불러올 수 없습니다: {str(e)}")
 
     # Download options
     st.markdown("---")
@@ -692,7 +731,9 @@ elif sort_option == "인기순 (조회수)":
 elif sort_option == "날짜순 (오래된순)":
     # Get ALL videos, sort by date (oldest first), then take top N
     all_videos = db.get_videos_by_channel(selected_channel.id, limit=None)
-    sorted_videos = sorted(all_videos, key=lambda v: v.published_at if v.published_at else datetime.min)
+    # Use timezone-aware datetime.min for comparison
+    min_datetime = datetime.min.replace(tzinfo=timezone.utc)
+    sorted_videos = sorted(all_videos, key=lambda v: v.published_at if v.published_at else min_datetime)
     videos = sorted_videos[:video_limit]
 else:
     videos = db.get_videos_by_channel(selected_channel.id, limit=video_limit)
