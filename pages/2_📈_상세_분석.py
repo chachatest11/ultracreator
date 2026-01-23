@@ -525,6 +525,159 @@ def show_video_player(video_id, video_title):
         if st.button("❌ 닫기", width="stretch"):
             st.rerun()
 
+    # Comments section
+    st.markdown("---")
+
+    # Initialize session state for comments
+    if f'comments_opened_{video_id}' not in st.session_state:
+        st.session_state[f'comments_opened_{video_id}'] = False
+    if f'comments_to_show_{video_id}' not in st.session_state:
+        st.session_state[f'comments_to_show_{video_id}'] = 5
+    if f'show_replies_{video_id}' not in st.session_state:
+        st.session_state[f'show_replies_{video_id}'] = set()
+
+    # Toggle button for comments
+    col_btn, col_space = st.columns([2, 6])
+    with col_btn:
+        if st.button(
+            "💬 댓글 보기" if not st.session_state[f'comments_opened_{video_id}'] else "💬 댓글 닫기",
+            key=f"toggle_comments_{video_id}",
+            use_container_width=True
+        ):
+            st.session_state[f'comments_opened_{video_id}'] = not st.session_state[f'comments_opened_{video_id}']
+            st.rerun()
+
+    # Show comments if opened
+    if st.session_state[f'comments_opened_{video_id}']:
+        # Custom CSS for compact comments
+        st.markdown("""
+        <style>
+        .compact-comment {
+            padding: 8px 0;
+            margin: 4px 0;
+            border-bottom: 1px solid #333;
+        }
+        .comment-author {
+            font-weight: bold;
+            font-size: 0.9rem;
+            margin-bottom: 4px;
+        }
+        .comment-text {
+            font-size: 0.85rem;
+            margin: 4px 0;
+            line-height: 1.3;
+        }
+        .comment-meta {
+            font-size: 0.75rem;
+            color: #888;
+            margin-top: 2px;
+        }
+        .reply-comment {
+            margin-left: 20px;
+            padding: 6px 0;
+            border-left: 2px solid #555;
+            padding-left: 10px;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+
+        with st.spinner("댓글을 불러오는 중..."):
+            try:
+                from core import youtube_api
+                from core.youtube_api import YouTubeAPIError
+
+                max_comments = 100
+                all_comments = youtube_api.get_video_comments(video_id, max_results=max_comments)
+
+                if all_comments and len(all_comments) > 0:
+                    comments_to_display = st.session_state[f'comments_to_show_{video_id}']
+                    displayed_comments = all_comments[:comments_to_display]
+
+                    st.caption(f"**{len(displayed_comments)}개 표시 중** (전체 {len(all_comments)}개+)")
+
+                    for idx, comment in enumerate(displayed_comments):
+                        # Main comment
+                        col_author, col_likes = st.columns([5, 1])
+                        with col_author:
+                            st.markdown(f"<div class='comment-author'>@{comment['author']}</div>", unsafe_allow_html=True)
+                        with col_likes:
+                            if comment['like_count'] > 0:
+                                st.caption(f"👍 {comment['like_count']:,}")
+
+                        st.markdown(f"<div class='comment-text'>{comment['text']}</div>", unsafe_allow_html=True)
+
+                        try:
+                            from datetime import datetime
+                            pub_date = datetime.fromisoformat(comment['published_at'].replace('Z', '+00:00'))
+                            st.caption(f"📅 {pub_date.strftime('%Y-%m-%d %H:%M')}")
+                        except:
+                            pass
+
+                        # Reply button if replies exist
+                        if comment.get('reply_count', 0) > 0:
+                            comment_key = f"{video_id}_{idx}"
+                            col_reply, col_space = st.columns([2, 6])
+                            with col_reply:
+                                if st.button(
+                                    f"💬 대댓글 {comment['reply_count']}개" if comment_key not in st.session_state[f'show_replies_{video_id}'] else f"💬 대댓글 닫기",
+                                    key=f"toggle_reply_{comment_key}",
+                                    use_container_width=True
+                                ):
+                                    if comment_key in st.session_state[f'show_replies_{video_id}']:
+                                        st.session_state[f'show_replies_{video_id}'].remove(comment_key)
+                                    else:
+                                        st.session_state[f'show_replies_{video_id}'].add(comment_key)
+                                    st.rerun()
+
+                            # Show replies if toggled
+                            if comment_key in st.session_state[f'show_replies_{video_id}'] and 'replies' in comment:
+                                st.markdown("<div style='margin-left: 20px; border-left: 2px solid #555; padding-left: 10px;'>", unsafe_allow_html=True)
+                                for reply in comment['replies']:
+                                    col_reply_author, col_reply_likes = st.columns([5, 1])
+                                    with col_reply_author:
+                                        st.markdown(f"<div class='comment-author' style='font-size: 0.85rem;'>@{reply['author']}</div>", unsafe_allow_html=True)
+                                    with col_reply_likes:
+                                        if reply['like_count'] > 0:
+                                            st.caption(f"👍 {reply['like_count']:,}")
+
+                                    st.markdown(f"<div class='comment-text' style='font-size: 0.8rem;'>{reply['text']}</div>", unsafe_allow_html=True)
+
+                                    try:
+                                        reply_date = datetime.fromisoformat(reply['published_at'].replace('Z', '+00:00'))
+                                        st.caption(f"📅 {reply_date.strftime('%Y-%m-%d %H:%M')}")
+                                    except:
+                                        pass
+
+                                    st.markdown("<hr style='margin: 4px 0; border-color: #444;'>", unsafe_allow_html=True)
+                                st.markdown("</div>", unsafe_allow_html=True)
+
+                        if idx < len(displayed_comments) - 1:
+                            st.markdown("<hr style='margin: 8px 0; border-color: #333;'>", unsafe_allow_html=True)
+
+                    # Load more button
+                    st.markdown("---")
+                    if comments_to_display < len(all_comments):
+                        col_more, col_space = st.columns([2, 6])
+                        with col_more:
+                            if st.button(
+                                f"💬 댓글 더보기 (+{min(10, len(all_comments) - comments_to_display)}개)",
+                                key=f"load_more_{video_id}",
+                                use_container_width=True
+                            ):
+                                st.session_state[f'comments_to_show_{video_id}'] = comments_to_display + 10
+                                st.rerun()
+                    else:
+                        st.caption("✓ 모든 댓글을 불러왔습니다")
+
+                else:
+                    st.info("이 영상에는 댓글이 없거나 댓글이 비활성화되어 있습니다.")
+
+            except YouTubeAPIError as e:
+                st.error(f"댓글을 불러오는 중 오류가 발생했습니다: {str(e)}")
+                st.caption("💡 댓글이 비활성화되어 있거나 API 할당량이 초과되었을 수 있습니다.")
+            except Exception as e:
+                st.error(f"예상치 못한 오류가 발생했습니다: {str(e)}")
+
 
 st.title("📈 상세 분석")
 st.markdown("채널 상세 분석 및 영상 데이터")

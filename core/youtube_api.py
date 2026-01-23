@@ -583,21 +583,31 @@ def get_channel_by_identifier(identifier: str) -> Dict[str, Any]:
 
 def get_video_comments(video_id: str, max_results: int = 20) -> List[Dict[str, Any]]:
     """
-    Get comments for a video
+    Get comments for a video including replies
 
     Args:
         video_id: YouTube video ID
-        max_results: Maximum number of comments to retrieve (default 20)
+        max_results: Maximum number of top-level comments to fetch (up to 100)
 
     Returns:
-        List of comment dictionaries with author, text, likes, and published date
+        List of comment dictionaries with structure:
+        {
+            "author": str,
+            "author_channel_url": str,
+            "text": str,
+            "like_count": int,
+            "published_at": str,
+            "updated_at": str,
+            "reply_count": int,
+            "replies": List[Dict] (optional, only if replies exist)
+        }
     """
     url = f"{BASE_URL}/commentThreads"
     params = {
-        "part": "snippet",
+        "part": "snippet,replies",
         "videoId": video_id,
         "maxResults": min(max_results, 100),
-        "order": "relevance",  # Get most relevant comments first
+        "order": "relevance",
         "textFormat": "plainText"
     }
 
@@ -606,16 +616,36 @@ def get_video_comments(video_id: str, max_results: int = 20) -> List[Dict[str, A
 
         comments = []
         for item in data.get("items", []):
-            snippet = item.get("snippet", {}).get("topLevelComment", {}).get("snippet", {})
+            # Get top level comment
+            top_level_snippet = item.get("snippet", {}).get("topLevelComment", {}).get("snippet", {})
 
-            comments.append({
-                "author": snippet.get("authorDisplayName", "Unknown"),
-                "author_channel_url": snippet.get("authorChannelUrl", ""),
-                "text": snippet.get("textDisplay", ""),
-                "like_count": snippet.get("likeCount", 0),
-                "published_at": snippet.get("publishedAt", ""),
-                "updated_at": snippet.get("updatedAt", "")
-            })
+            comment_data = {
+                "author": top_level_snippet.get("authorDisplayName", "Unknown"),
+                "author_channel_url": top_level_snippet.get("authorChannelUrl", ""),
+                "text": top_level_snippet.get("textDisplay", ""),
+                "like_count": top_level_snippet.get("likeCount", 0),
+                "published_at": top_level_snippet.get("publishedAt", ""),
+                "updated_at": top_level_snippet.get("updatedAt", ""),
+                "reply_count": item.get("snippet", {}).get("totalReplyCount", 0)
+            }
+
+            # Get replies if they exist
+            replies_data = item.get("replies", {}).get("comments", [])
+            if replies_data:
+                replies = []
+                for reply_item in replies_data:
+                    reply_snippet = reply_item.get("snippet", {})
+                    replies.append({
+                        "author": reply_snippet.get("authorDisplayName", "Unknown"),
+                        "author_channel_url": reply_snippet.get("authorChannelUrl", ""),
+                        "text": reply_snippet.get("textDisplay", ""),
+                        "like_count": reply_snippet.get("likeCount", 0),
+                        "published_at": reply_snippet.get("publishedAt", ""),
+                        "updated_at": reply_snippet.get("updatedAt", "")
+                    })
+                comment_data["replies"] = replies
+
+            comments.append(comment_data)
 
         return comments
 
