@@ -54,9 +54,14 @@ def show_video_player(video_id, video_title):
     with st.spinner("댓글을 불러오는 중..."):
         try:
             from core import youtube_api
+            from core.youtube_api import YouTubeAPIError
+
+            # Debug info
+            st.caption(f"🔍 Video ID: {video_id}")
+
             comments = youtube_api.get_video_comments(video_id, max_results=20)
 
-            if comments:
+            if comments and len(comments) > 0:
                 st.caption(f"**총 {len(comments)}개의 댓글** (인기순)")
 
                 # Display comments in a scrollable container
@@ -81,10 +86,18 @@ def show_video_player(video_id, video_title):
                         if idx < len(comments):
                             st.markdown("---")
             else:
-                st.info("💡 댓글이 비활성화되어 있거나 댓글이 없습니다.")
+                st.info("💡 댓글이 없습니다.")
 
+        except YouTubeAPIError as e:
+            error_msg = str(e).lower()
+            if "disabled" in error_msg:
+                st.info("💡 이 영상은 댓글이 비활성화되어 있습니다.")
+            else:
+                st.error(f"⚠️ 댓글을 불러오는 중 오류 발생: {str(e)}")
+                st.caption("YouTube API 키를 확인하거나 잠시 후 다시 시도해주세요.")
         except Exception as e:
-            st.warning(f"⚠️ 댓글을 불러올 수 없습니다: {str(e)}")
+            st.error(f"⚠️ 예상치 못한 오류: {str(e)}")
+            st.caption(f"오류 타입: {type(e).__name__}")
 
     # Download options
     st.markdown("---")

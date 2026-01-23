@@ -621,10 +621,12 @@ def get_video_comments(video_id: str, max_results: int = 20) -> List[Dict[str, A
         return comments
 
     except YouTubeAPIError as e:
-        # Comments might be disabled for the video
-        if "commentsDisabled" in str(e) or "forbidden" in str(e).lower():
-            return []
+        # Check if comments are disabled
+        error_msg = str(e).lower()
+        if "commentsdisabled" in error_msg or "forbidden" in error_msg or "disabled" in error_msg:
+            raise YouTubeAPIError("Comments are disabled for this video")
+        # Re-raise the original error for debugging
         raise
     except Exception as e:
-        # Return empty list if any error occurs
-        return []
+        # Re-raise to allow proper error handling upstream
+        raise YouTubeAPIError(f"Failed to fetch comments: {str(e)}")
