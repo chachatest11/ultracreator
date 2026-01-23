@@ -715,7 +715,7 @@ with col3:
                 result = jobs.fetch_channel_data(
                     selected_channel.youtube_channel_id,
                     force_refresh=True,
-                    progress_callback=lambda msg: st.info(msg)
+                    progress_callback=None  # Don't show progress messages
                 )
                 if result:
                     st.success("✅ 최신 영상 데이터를 가져왔습니다!")
