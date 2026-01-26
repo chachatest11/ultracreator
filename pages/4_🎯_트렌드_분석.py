@@ -368,7 +368,7 @@ if st.session_state.niche_run_id:
                             # Play button
                             if st.button(
                                 "▶️ 재생",
-                                key=f"play_sample_{video['video_id']}",
+                                key=f"play_sample_{selected_cluster['cluster_index']}_{idx}",
                                 use_container_width=True
                             ):
                                 show_video_player(video['video_id'], video['title'])
@@ -506,7 +506,7 @@ if st.session_state.niche_run_id:
                                     # Play button
                                     if st.button(
                                         "▶️ 재생",
-                                        key=f"play_all_{video['video_id']}",
+                                        key=f"play_all_{idx}",
                                         use_container_width=True
                                     ):
                                         show_video_player(video['video_id'], video['title'])
