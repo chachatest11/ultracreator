@@ -69,10 +69,10 @@ with st.sidebar:
                     if result:
                         # Add to selected groups
                         if selected_groups:
-                            channel = result  # Result is the channel object
+                            channel_id = result  # Result is the channel ID (int)
                             for group_name in selected_groups:
                                 group_wl = next(wl for wl in all_groups_sidebar if wl.name == group_name)
-                                db.add_channel_to_watchlist(group_wl.id, channel.id)
+                                db.add_channel_to_watchlist(group_wl.id, channel_id)
                             st.success(f"✓ 채널이 추가되고 {len(selected_groups)}개 그룹에 할당되었습니다!")
                         else:
                             st.success("✓ 채널이 추가되었습니다!")
@@ -124,10 +124,10 @@ with st.sidebar:
 
                 # Add all successful channels to selected groups
                 if selected_groups and added_channels:
-                    for channel in added_channels:
+                    for channel_id in added_channels:
                         for group_name in selected_groups:
                             group_wl = next(wl for wl in all_groups_sidebar if wl.name == group_name)
-                            db.add_channel_to_watchlist(group_wl.id, channel.id)
+                            db.add_channel_to_watchlist(group_wl.id, channel_id)
 
                 # Final result
                 if selected_groups and success_count > 0:
