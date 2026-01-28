@@ -44,73 +44,14 @@ st.markdown("</div>", unsafe_allow_html=True)
 # Initialize session state
 if 'download_result' not in st.session_state:
     st.session_state.download_result = None
-if 'video_info' not in st.session_state:
-    st.session_state.video_info = None
 
 # Input section
 st.markdown("---")
-col1, col2 = st.columns([4, 1])
-
-with col1:
-    video_url = st.text_input(
-        "🎬 YouTube 영상 URL",
-        placeholder="https://www.youtube.com/watch?v=...",
-        help="YouTube 영상 URL을 입력하세요"
-    )
-
-with col2:
-    st.write("")
-    st.write("")
-    fetch_info = st.button("📊 정보 확인", use_container_width=True, type="secondary")
-
-# Fetch video info
-if fetch_info and video_url:
-    with st.spinner("영상 정보를 가져오는 중..."):
-        try:
-            # Extract video ID
-            video_id_match = re.search(r'(?:v=|/)([0-9A-Za-z_-]{11}).*', video_url)
-            if video_id_match:
-                video_id = video_id_match.group(1)
-
-                # Get video info using yt-dlp
-                info_cmd = ['yt-dlp', '-J', video_url]
-                result = subprocess.run(info_cmd, capture_output=True, text=True, timeout=30)
-
-                if result.returncode == 0:
-                    st.session_state.video_info = json.loads(result.stdout)
-                    st.success("✅ 영상 정보를 가져왔습니다!")
-                else:
-                    st.error("❌ 영상 정보를 가져올 수 없습니다.")
-            else:
-                st.error("❌ 올바른 YouTube URL을 입력해주세요.")
-        except Exception as e:
-            st.error(f"❌ 오류 발생: {str(e)}")
-
-# Display video info if available
-if st.session_state.video_info:
-    video_info = st.session_state.video_info
-
-    st.markdown("---")
-    st.subheader("📋 영상 정보")
-
-    col1, col2 = st.columns([1, 2])
-
-    with col1:
-        # Thumbnail
-        thumbnail_url = video_info.get('thumbnail', '')
-        if thumbnail_url:
-            st.image(thumbnail_url, use_column_width=True)
-
-    with col2:
-        st.markdown(f"**📌 제목:** {video_info.get('title', 'N/A')}")
-        st.markdown(f"**📺 채널:** {video_info.get('channel', 'N/A')}")
-        st.markdown(f"**⏱️ 길이:** {video_info.get('duration', 0)} 초")
-        st.markdown(f"**👁️ 조회수:** {video_info.get('view_count', 0):,}")
-
-        upload_date = video_info.get('upload_date', '')
-        if upload_date and len(upload_date) == 8:
-            formatted_date = f"{upload_date[:4]}-{upload_date[4:6]}-{upload_date[6:8]}"
-            st.markdown(f"**📅 업로드일:** {formatted_date}")
+video_url = st.text_input(
+    "🎬 YouTube 영상 URL",
+    placeholder="https://www.youtube.com/watch?v=...",
+    help="YouTube 영상 URL을 입력하세요"
+)
 
 # Download settings
 st.markdown("---")
@@ -409,10 +350,14 @@ if st.button(
 
                     progress_bar.progress(1.0)
 
+                    # Extract video ID for filename
+                    video_id_match = re.search(r'(?:v=|/)([0-9A-Za-z_-]{11}).*', video_url)
+                    video_id = video_id_match.group(1) if video_id_match else 'video'
+
                     # Store results
                     st.session_state.download_result = {
                         'video_bytes': video_bytes,
-                        'video_title': st.session_state.video_info.get('title', 'video') if st.session_state.video_info else 'video',
+                        'video_title': video_id,
                         'zip_bytes': zip_bytes,
                         'screenshot_count': screenshot_count
                     }
